@@ -1,0 +1,105 @@
+version: '3'
+
+services:
+  spark-master:
+    image: spark-image 
+    container_name: spark-master
+    entrypoint: ['./entrypoint.sh', 'master']
+    build:
+      context: ./spark
+      dockerfile: Dockerfile 
+    ports:
+      - "4040:4040"
+      - "9090:8080"
+      - "7077:7077"
+      - '3002:3002' # Jupyter notebook
+
+    volumes:
+      - spark-logs:/opt/spark/spark-events
+      - tpch-data:/opt/tpch-data
+    env_file:
+      - .env.spark
+  
+  spark-history-server:
+    container_name: spark-history
+    image: spark-image
+    entrypoint: ['./entrypoint.sh', 'history']
+    depends_on:
+      - spark-master
+    env_file:
+      - .env.spark
+    volumes:
+      - spark-logs:/opt/spark/spark-events
+    ports:
+      - '18080:18080'
+  
+  spark-worker:
+    image: spark-image
+    entrypoint: ['./entrypoint.sh', 'worker']
+    volumes:
+      - spark-logs:/opt/spark/spark-events
+      - tpch-data:/opt/tpch-data
+    env_file:
+      - .env.spark
+  
+
+  minio:
+    image: 'minio/minio:latest'
+    container_name: minio
+    ports:
+      - '9000:9000'  # API S3
+      - '9001:9001'  # Console Web
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    command: server --console-address ":9001" /data
+    volumes:
+      - minio-data:/data
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+  
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+        /usr/bin/mc config host add myminio http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+        /usr/bin/mc mb myminio/spark-bucket;
+        /usr/bin/mc policy set download myminio/spark-bucket;
+        exit 0;
+      "
+  
+  upstream_data:
+    image: postgres:15
+    container_name: upstream_data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./postgres/load-tpch.sh:/docker-entrypoint-initdb.d/02-load-tpch.sh:ro
+      - postgres-data:/var/lib/postgresql/data
+      - tpch-data:/opt/tpch-data  # Ajout du volume partagé
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tpchuser -d tpchdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+volumes:
+  spark-logs:
+  minio-data:
+  postgres-data:
+  tpch-data:
