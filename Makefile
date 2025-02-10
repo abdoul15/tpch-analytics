@@ -1,4 +1,3 @@
-# Ajouter dans votre Makefile existant
 init-scripts:
 	chmod +x postgres/load-tpch.sh
 
