@@ -48,11 +48,6 @@ Les données représentent l'ensemble des opérations de la chaîne d'approvisio
   - Temps de traitement plus long
   - Besoin en ressources plus important
 
-#### 5. Données Historiques
-- Conservation de l'historique complet des transactions
-- Période de rétention : 7 ans
-- Granularité : Niveau transaction
-
 #### 6. Particularités des Données
 - Forte volumétrie sur LINEITEM et ORDERS
 - Saisonnalité des commandes
@@ -73,7 +68,6 @@ Les données représentent l'ensemble des opérations de la chaîne d'approvisio
 
 ### 1. Tables Analytiques
 - Tables en couches (Bronze, Silver, Gold, Interface)
-- Documentation des schémas
 - Tests de qualité des données
 
 ### 2. Requêtes SQL Optimisées
@@ -81,14 +75,10 @@ Les données représentent l'ensemble des opérations de la chaîne d'approvisio
 - Analyses prédéfinies
 - Documentation des requêtes
 
-### 3. Monitoring
-- Logs de traitement
-- Métriques de qualité des données
-- Suivi des performances des requêtes
-
 ## 🛠️ Prérequis Techniques
 - Apache Spark 3.x
 - Delta Lake
+- Minio 
 - Python 3.8+
 - Git
 - TPC-H Data Generator
