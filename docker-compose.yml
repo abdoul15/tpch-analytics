@@ -17,6 +17,7 @@ services:
     volumes:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
+      - ./notebooks:/opt/spark/notebooks
     env_file:
       - .env.spark
   
@@ -30,6 +31,7 @@ services:
       - .env.spark
     volumes:
       - spark-logs:/opt/spark/spark-events
+      - ./notebooks:/opt/spark/notebooks
     ports:
       - '18080:18080'
   
@@ -39,6 +41,7 @@ services:
     volumes:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
+      - ./notebooks:/opt/spark/notebooks
     env_file:
       - .env.spark
   
@@ -66,7 +69,8 @@ services:
   createbuckets:
     image: minio/mc:latest
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     entrypoint: >
       /bin/sh -c "
         /usr/bin/mc config host add myminio http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};

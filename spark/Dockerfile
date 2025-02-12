@@ -31,7 +31,6 @@ RUN mkdir -p /opt/spark/tests /opt/spark/notebooks /tmp/spark-events
 #COPY tests/test-minio.py /opt/spark/tests
 COPY ./requirements.txt ./
 COPY ./start-jupyter.sh /opt/spark/scripts/
-COPY conf/spark-defaults.conf "$SPARK_HOME/conf/spark-defaults.conf"
 COPY conf/metrics.properties "$SPARK_HOME/conf/metrics.properties"
 
 # Installation des dépendances Python
