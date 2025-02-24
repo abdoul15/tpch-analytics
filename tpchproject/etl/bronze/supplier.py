@@ -7,14 +7,14 @@ from tpchproject.utils import ETLDataSet, TableETL
 from tpchproject.utils.database import get_table_from_db
 
 
-class OrdersBronzeETL(TableETL):
+class SupplierBronzeETL(TableETL):
     def __init__(
         self,
         spark: SparkSession,
         upstream_table_names: Optional[List[Type[TableETL]]] = None,
-        name: str = 'orders',
-        primary_keys: List[str] = ['o_orderkey'],
-        storage_path: str = 's3a://spark-bucket/delta/bronze/orders',
+        name: str = 'supplier',
+        primary_keys: List[str] = ['s_suppkey'],
+        storage_path: str = 's3a://spark-bucket/delta/bronze/supplier',
         data_format: str = 'delta',
         database: str = 'tpchdb',
         partition_keys: List[str] = ['etl_inserted'],
@@ -35,14 +35,14 @@ class OrdersBronzeETL(TableETL):
         )
 
     def extract_upstream(self) -> List[ETLDataSet]:
-        # Extract orders data from TPCH source
-        table_name = 'public.orders'
-        orders_data = get_table_from_db(table_name, self.spark)
+        # Extract supplier data from TPCH source
+        table_name = 'public.supplier'
+        supplier_data = get_table_from_db(table_name, self.spark)
 
         # Create an ETLDataSet instance
         etl_dataset = ETLDataSet(
             name=self.name,
-            curr_data=orders_data,
+            curr_data=supplier_data,
             primary_keys=self.primary_keys,
             storage_path=self.storage_path,
             data_format=self.data_format,
@@ -53,11 +53,11 @@ class OrdersBronzeETL(TableETL):
         return [etl_dataset]
 
     def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
-        orders_data = upstream_datasets[0].curr_data
+        supplier_data = upstream_datasets[0].curr_data
         current_timestamp = datetime.now()
 
         # Add ETL timestamp
-        transformed_data = orders_data.withColumn(
+        transformed_data = supplier_data.withColumn(
             'etl_inserted', lit(current_timestamp)
         )
 
@@ -100,31 +100,29 @@ class OrdersBronzeETL(TableETL):
             )
             partition_filter = f"etl_inserted = '{latest_partition}'"
 
-        # Read the orders data from the Delta Lake table
-        orders_data = (
+        # Read the supplier data from the Delta Lake table
+        supplier_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)
             .filter(partition_filter)
         )
 
         # Explicitly select columns based on TPCH schema
-        orders_data = orders_data.select(
-            col('o_orderkey'),  # Primary key
-            col('o_custkey'),  # Foreign key to CUSTOMER
-            col('o_orderstatus'),  # Order status
-            col('o_totalprice'),  # Total price
-            col('o_orderdate'),  # Date of the order
-            col('o_orderpriority'),  # Priority of the order
-            col('o_clerk'),  # Clerk who created the order
-            col('o_shippriority'),  # Shipping priority
-            col('o_comment'),  # Comment
+        supplier_data = supplier_data.select(
+            col('s_suppkey'),  # Supplier key (Primary Key)
+            col('s_name'),  # Supplier name
+            col('s_address'),  # Address
+            col('s_nationkey'),  # Nation key
+            col('s_phone'),  # Phone number
+            col('s_acctbal'),  # Account balance
+            col('s_comment'),  # Comment
             col('etl_inserted'),
         )
 
         # Create an ETLDataSet instance
         etl_dataset = ETLDataSet(
             name=self.name,
-            curr_data=orders_data,
+            curr_data=supplier_data,
             primary_keys=self.primary_keys,
             storage_path=self.storage_path,
             data_format=self.data_format,

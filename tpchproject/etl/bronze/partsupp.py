@@ -3,21 +3,23 @@ from typing import Dict, List, Optional, Type
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit
-from tpchproject.utils import ETLDataSet, TableETL
+
+
+from tpchproject.utils.base_table import TableETL,ETLDataSet
 from tpchproject.utils.database import get_table_from_db
 
 
-class OrdersBronzeETL(TableETL):
+class PartSuppBronzeETL(TableETL):
     def __init__(
         self,
         spark: SparkSession,
         upstream_table_names: Optional[List[Type[TableETL]]] = None,
-        name: str = 'orders',
-        primary_keys: List[str] = ['o_orderkey'],
-        storage_path: str = 's3a://spark-bucket/delta/bronze/orders',
-        data_format: str = 'delta',
-        database: str = 'tpchdb',
-        partition_keys: List[str] = ['etl_inserted'],
+        name: str = "partsupp",
+        primary_keys: List[str] = ["ps_partkey", "ps_suppkey"],
+        storage_path: str = "s3a://spark-bucket/delta/bronze/partsupp",
+        data_format: str = "delta",
+        database: str = "tpchdb",
+        partition_keys: List[str] = ["etl_inserted"],
         run_upstream: bool = True,
         load_data: bool = True,
     ) -> None:
@@ -35,14 +37,14 @@ class OrdersBronzeETL(TableETL):
         )
 
     def extract_upstream(self) -> List[ETLDataSet]:
-        # Extract orders data from TPCH source
-        table_name = 'public.orders'
-        orders_data = get_table_from_db(table_name, self.spark)
+        # Assuming partsupp data is extracted from a database or other source
+        table_name = "public.partsupp"
+        partsupp_data = get_table_from_db(table_name, self.spark)
 
         # Create an ETLDataSet instance
         etl_dataset = ETLDataSet(
             name=self.name,
-            curr_data=orders_data,
+            curr_data=partsupp_data,
             primary_keys=self.primary_keys,
             storage_path=self.storage_path,
             data_format=self.data_format,
@@ -52,13 +54,15 @@ class OrdersBronzeETL(TableETL):
 
         return [etl_dataset]
 
-    def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
-        orders_data = upstream_datasets[0].curr_data
+    def transform_upstream(
+        self, upstream_datasets: List[ETLDataSet]
+    ) -> ETLDataSet:
+        partsupp_data = upstream_datasets[0].curr_data
         current_timestamp = datetime.now()
 
-        # Add ETL timestamp
-        transformed_data = orders_data.withColumn(
-            'etl_inserted', lit(current_timestamp)
+        # Perform any necessary transformations on the partsupp data
+        transformed_data = partsupp_data.withColumn(
+            "etl_inserted", lit(current_timestamp)
         )
 
         # Create a new ETLDataSet instance with the transformed data
@@ -75,7 +79,9 @@ class OrdersBronzeETL(TableETL):
         self.curr_data = etl_dataset.curr_data
         return etl_dataset
 
-    def read(self, partition_values: Optional[Dict[str, str]] = None) -> ETLDataSet:
+    def read(
+        self, partition_values: Optional[Dict[str, str]] = None
+    ) -> ETLDataSet:
         if not self.load_data:
             return ETLDataSet(
                 name=self.name,
@@ -88,43 +94,39 @@ class OrdersBronzeETL(TableETL):
             )
 
         elif partition_values:
-            partition_filter = ' AND '.join(
+            partition_filter = " AND ".join(
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
             latest_partition = (
                 self.spark.read.format(self.data_format)
                 .load(self.storage_path)
-                .selectExpr('max(etl_inserted)')
+                .selectExpr("max(etl_inserted)")
                 .collect()[0][0]
             )
             partition_filter = f"etl_inserted = '{latest_partition}'"
 
-        # Read the orders data from the Delta Lake table
-        orders_data = (
+        # Read the partsupp data from the Delta Lake table
+        partsupp_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)
             .filter(partition_filter)
         )
 
-        # Explicitly select columns based on TPCH schema
-        orders_data = orders_data.select(
-            col('o_orderkey'),  # Primary key
-            col('o_custkey'),  # Foreign key to CUSTOMER
-            col('o_orderstatus'),  # Order status
-            col('o_totalprice'),  # Total price
-            col('o_orderdate'),  # Date of the order
-            col('o_orderpriority'),  # Priority of the order
-            col('o_clerk'),  # Clerk who created the order
-            col('o_shippriority'),  # Shipping priority
-            col('o_comment'),  # Comment
-            col('etl_inserted'),
+        # Explicitly select columns
+        partsupp_data = partsupp_data.select(
+            col("ps_partkey"),
+            col("ps_suppkey"),
+            col("ps_availqty"),
+            col("ps_supplycost"),
+            col("ps_comment"),
+            col("etl_inserted"),
         )
 
         # Create an ETLDataSet instance
         etl_dataset = ETLDataSet(
             name=self.name,
-            curr_data=orders_data,
+            curr_data=partsupp_data,
             primary_keys=self.primary_keys,
             storage_path=self.storage_path,
             data_format=self.data_format,

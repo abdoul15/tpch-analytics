@@ -20,3 +20,21 @@ rebuild:
 
 notebook:
 	docker exec spark-master bash -c "/opt/spark/scripts/start-jupyter.sh"
+
+# Vérifier le code avec Ruff
+check:
+	docker exec spark-master ruff check .
+
+# Formater le code avec Ruff
+format:
+	docker exec spark-master ruff format .
+
+# Corriger automatiquement les problèmes avec Ruff
+fix:
+	docker exec spark-master ruff check --fix .
+
+spark-sql:
+	docker exec -ti spark-master spark-sql --master spark://spark-master:7077
+
+cr: 
+	@read -p "Enter pyspark relative path:" pyspark_path; docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/$$pyspark_path

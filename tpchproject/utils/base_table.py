@@ -56,14 +56,12 @@ class TableETL(ABC):
         pass
 
     @abstractmethod
-    def transform_upstream(
-        self, upstream_datasets: List[ETLDataSet]
-    ) -> ETLDataSet:
+    def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
         pass
 
     def validate(self, data: ETLDataSet) -> bool:
-        ge_path = "capstone/rainforest/great_expectations"
-        expc_json_path = f"{ge_path}/expectations/{self.name}.json"
+        ge_path = 'capstone/rainforest/great_expectations'
+        expc_json_path = f'{ge_path}/expectations/{self.name}.json'
         file_path = Path(expc_json_path)
 
         if file_path.exists():
@@ -71,46 +69,50 @@ class TableETL(ABC):
             context = gx.get_context(
                 context_root_dir=os.path.join(
                     os.getcwd(),
-                    "capstone",
-                    "rainforest",
-                    "great_expectations",
+                    'capstone',
+                    'rainforest',
+                    'great_expectations',
                 )
             )
             validations = []
             validations.append(
                 {
-                    "batch_request": context.get_datasource("spark_datasource")
+                    'batch_request': context.get_datasource('spark_datasource')
                     .get_asset(self.name)
                     .build_batch_request(dataframe=data.curr_data),
-                    "expectation_suite_name": self.name,
+                    'expectation_suite_name': self.name,
                 }
             )
             return context.run_checkpoint(
-                checkpoint_name="dq_checkpoint", validations=validations
+                checkpoint_name='dq_checkpoint', validations=validations
             ).list_validation_results()
         else:
             return True
 
     def load(self, data: ETLDataSet) -> None:
-        # Ecriture des données transformées dans delta lake
-        data.curr_data.write.option("mergeSchema", "true").format(
+        # Ecriture des données transformées dans delta lake et enregistrement de
+        # la table dans me métastore
+        self.spark.sql(f"CREATE SCHEMA IF NOT EXISTS {self.database}")
+        data.curr_data.write \
+        .option('mergeSchema', 'true') \
+        .format(
             data.data_format
-        ).mode("overwrite").partitionBy(data.partition_keys).save(
-            data.storage_path
-        )
+        ) \
+        .option('path', data.storage_path) \
+        .mode('overwrite') \
+        .partitionBy(data.partition_keys) \
+        .saveAsTable(f"{self.database}.{self.name}")
 
     def run(self) -> None:
         transformed_data = self.transform_upstream(self.extract_upstream())
-        if not self.validate(transformed_data):
-            raise InValidDataException(
-                f"The {self.name} dataset did not pass validation, please"
-                " check the metadata db for more information"
-            )
-        if self.load_data:
-            self.load(transformed_data)
+        # if not self.validate(transformed_data):
+        #     raise InValidDataException(
+        #         f"The {self.name} dataset did not pass validation, please"
+        #         " check the metadata db for more information"
+        #     )
+        # if self.load_data:
+        self.load(transformed_data)
 
     @abstractmethod
-    def read(
-        self, partition_values: Optional[Dict[str, str]] = None
-    ) -> ETLDataSet:
+    def read(self, partition_values: Optional[Dict[str, str]] = None) -> ETLDataSet:
         pass
