@@ -63,7 +63,7 @@ Les tables utilisées dans ce projet proviennent du dataset **TPC-H**, qui simul
 | Outil / Techno      | Utilisation |
 |---------------------|-------------|
 | **PostgreSQL**      | Base de données source |
-| **Apache Spark / Pandas** | Traitement des données (ETL) |
+| **Apache Spark** | Traitement des données (ETL) |
 | **Parquet / Delta Lake** | Format de stockage optimisé |
 | **Sperset** | Visualisation et reporting |
 | **Great Expectations** | Vérification de la qualité des données |
