@@ -5,7 +5,7 @@
 Ce projet vise à construire un **pipeline analytique complet**, basé sur les **données TPC-H** stockées dans une base **PostgreSQL**.  
 L'objectif est de **traiter, transformer et structurer** ces données afin d'extraire des **KPIs métier** exploitables dans un **dashboard** ou une solution de reporting (*Power BI, Tableau, etc.*).
 
-Nous avons adopté une approche **modulaire et scalable** avec une architecture multi-couches **Bronze → Silver → Gold**, et nous avons mis en place un ensemble de **règles de Data Quality** afin de garantir la fiabilité des résultats.
+J'ai adopté une approche **modulaire et scalable** avec une architecture multi-couches **Bronze → Silver → Gold**, et j'ai mis en place un ensemble de **règles de Data Quality** afin de garantir la fiabilité des résultats.
 
 ---
 
@@ -71,30 +71,3 @@ Les tables utilisées dans ce projet proviennent du dataset **TPC-H**, qui simul
 | **Minio**| Stockage data lake |
 
 
----
-
-## 🔍 **Data Quality : Contrôles Automatisés**
-Des **règles de contrôle de qualité** ont été mises en place afin de garantir la fiabilité des données en sortie :
-
-### ✅ **Vérifications effectuées**
-| Type de Contrôle | Exemple |
-|------------------|---------|
-| **Contraintes structurelles** | `o_orderkey` doit être unique |
-| **Validation métier** | `o_totalprice > 0` |
-| **Anomalies statistiques** | Un CA quotidien qui explose anormalement |
-| **Reconciliation Check** | Comparer le nombre de commandes entre Silver et Gold |
-| **Timestamps corrects** | `o_orderdate <= l_shipdate` |
-
-💡 **Si un test échoue** → On peut **bloquer la publication** ou **générer une alerte**.
-
----
-
-## 🎯 **Pourquoi ce pipeline est robuste ?**
-✅ **Scalabilité** : Conçu pour gérer des volumes de données croissants.  
-✅ **Data Quality** : Contrôles automatisés avant la mise en production.  
-✅ **Versioning & Historique** : Capacité de stocker plusieurs runs pour analyse.  
-✅ **Facilité de Debug** : Logs et rapports disponibles en cas d’erreur.
-
----
-
-En cours de dev...
