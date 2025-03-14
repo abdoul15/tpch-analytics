@@ -13,7 +13,7 @@ license = {file="LICENSE"}
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "great-expectations[sqlalchemy]==0.17.11",
+    "great-expectations[sqlalchemy]==0.18.21",
     "pytest==7.4.0",
     "faker==19.3.0",
     "delta-spark==2.3.0",
@@ -110,6 +110,9 @@ minversion = "7.0"
 addopts = "-ra -q --cov=tpchproject --cov-report=term-missing"
 testpaths = [
     "tests",
+]
+filterwarnings = [
+    "ignore",
 ]
 
 # Configuration pour le formatage de docstring

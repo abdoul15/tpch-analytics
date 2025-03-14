@@ -1,0 +1,92 @@
+{
+    "data_asset_type": null,
+    "expectation_suite_name": "customer",
+    "expectations": [
+      {
+        "expectation_type": "expect_table_row_count_to_be_between",
+        "kwargs": {
+          "min_value": 1,
+          "max_value": 2000
+        },
+        "meta": {
+          "notes": {
+            "format": "markdown",
+            "content": "Vérifie que la table contient un nombre raisonnable de lignes pour un scale factor de 0.01."
+          }
+        }
+      },
+      {
+        "expectation_type": "expect_table_columns_to_match_ordered_list",
+        "kwargs": {
+          "column_list": [
+            "c_custkey",
+            "c_name",
+            "c_address",
+            "c_nationkey",
+            "c_phone",
+            "c_acctbal",
+            "c_mktsegment",
+            "c_comment",
+            "etl_inserted"
+          ]
+        },
+        "meta": {
+          "notes": {
+            "format": "markdown",
+            "content": "Vérifie que toutes les colonnes attendues sont présentes dans le bon ordre."
+          }
+        }
+      },
+      {
+        "expectation_type": "expect_column_values_to_be_unique",
+        "kwargs": {
+          "column": "c_custkey"
+        },
+        "meta": {
+          "notes": {
+            "format": "markdown",
+            "content": "Vérifie que la clé primaire est unique."
+          }
+        }
+      },
+      {
+        "expectation_type": "expect_column_values_to_not_be_null",
+        "kwargs": {
+          "column": "c_custkey"
+        },
+        "meta": {
+          "notes": {
+            "format": "markdown",
+            "content": "Vérifie que la clé primaire n'est pas nulle."
+          }
+        }
+      },
+      {
+        "expectation_type": "expect_column_values_to_not_be_null",
+        "kwargs": {
+          "column": "c_name"
+        },
+        "meta": {
+          "notes": {
+            "format": "markdown",
+            "content": "Vérifie que le nom du client n'est pas nul."
+          }
+        }
+      },
+      {
+        "expectation_type": "expect_column_values_to_not_be_null",
+        "kwargs": {
+          "column": "c_nationkey"
+        },
+        "meta": {
+          "notes": {
+            "format": "markdown",
+            "content": "Vérifie que la clé de nation n'est pas nulle."
+          }
+        }
+      }
+    ],
+    "meta": {
+      "great_expectations_version": "0.18.21"
+    }
+  }

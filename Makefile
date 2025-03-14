@@ -37,4 +37,49 @@ spark-sql:
 	docker exec -ti spark-master spark-sql --master spark://spark-master:7077
 
 cr: 
-	@read -p "Enter pyspark relative path:" pyspark_path; docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/$$pyspark_path
+	@read -p "Entrer le chemin du fichier:" pyspark_path; docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/$$pyspark_path
+
+# Exécuter le pipeline complet
+run-pipeline:
+	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py
+
+# Exécuter uniquement les vues pour le département Finance
+run-finance:
+	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py finance
+
+# Exécuter uniquement les vues pour le département Supply Chain
+run-supply-chain:
+	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py supply_chain
+
+# Exécuter toutes les couches (bronze, silver, gold, interface)
+run-all:
+	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py all
+
+# Démarrer Superset
+run-superset:
+	docker compose up -d superset
+
+# Exécuter tous les tests
+test:
+	docker exec spark-master pytest -xvs /opt/spark/project/tpch_etl_pipeline/tests
+
+# Exécuter uniquement les tests unitaires
+test-unit:
+	docker exec spark-master pytest -xvs /opt/spark/project/tpch_etl_pipeline/tests/unit
+
+# Exécuter uniquement les tests d'intégration
+test-integration:
+	docker exec spark-master pytest -xvs /opt/spark/project/tpch_etl_pipeline/tests/integration
+
+# Exécuter les tests avec couverture de code
+test-coverage:
+	docker exec spark-master pytest --cov=tpch_etl_pipeline /opt/spark/project/tpch_etl_pipeline/tests
+
+# Great Expectations commands
+# Initialiser Great Expectations
+ge-init:
+	docker exec spark-master bash -c "cd /opt/spark/project/tpch_etl_pipeline && great_expectations init"
+
+# Générer la documentation des attentes
+ge-docs:
+	docker exec -ti spark-master bash -c "cd /opt/spark/project/tpch_etl_pipeline && great_expectations docs build"

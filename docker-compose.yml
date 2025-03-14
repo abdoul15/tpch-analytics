@@ -1,4 +1,3 @@
-
 services:
   spark-master:
     image: spark-image 
@@ -17,7 +16,7 @@ services:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
       - ./notebooks:/opt/spark/notebooks
-      - ./tpchproject:/opt/spark/project/tpchproject  # Add this line
+      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline  # Add this line
     env_file:
       - .env.spark
   
@@ -32,7 +31,7 @@ services:
     volumes:
       - spark-logs:/opt/spark/spark-events
       - ./notebooks:/opt/spark/notebooks
-      - ./tpchproject:/opt/spark/project/tpchproject  # Add this line
+      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline  # Add this line
     ports:
       - '18080:18080'
   
@@ -43,7 +42,7 @@ services:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
       - ./notebooks:/opt/spark/notebooks
-      - ./tpchproject:/opt/spark/project/tpchproject # Add this line
+      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline # Add this line
     env_file:
       - .env.spark
   
@@ -103,9 +102,43 @@ services:
       timeout: 5s
       retries: 5
 
+  # Superset avec configuration simplifiée
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    depends_on:
+      upstream_data:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-superset-secret}
+      # Utiliser SQLite pour simplifier la configuration
+      SQLALCHEMY_DATABASE_URI: sqlite:////app/superset_home/superset.db
+      PYTHONPATH: /app/pythonpath
+      SUPERSET_LOAD_EXAMPLES: "yes"
+      FLASK_ENV: development
+      SUPERSET_PORT: 8088
+    volumes:
+      - superset-data:/app/superset_home
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: >
+      bash -c "
+        pip install --no-cache-dir pyhive sqlalchemy-trino delta-spark &&
+        superset db upgrade &&
+        superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin123 &&
+        superset init &&
+        superset run -p 8088 --host 0.0.0.0 --with-threads --reload --debugger
+      "
 
 volumes:
   spark-logs:
   minio-data:
   postgres-data:
   tpch-data:
+  superset-data:
