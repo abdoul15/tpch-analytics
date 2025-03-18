@@ -59,7 +59,7 @@ Avant de construire un pipeline, il faut d'abord identifier les besoins spécifi
 - Application des premières règles de **Data Quality**.
 
 ### **3. Calcul des KPIs & Agrégations (Gold Layer)**
-- Construction des tables **prêtes pour l'analyse** (One Big Table ou tables KPI spécifiques).
+- Construction des tables **prêtes pour l'analyse** (One Big Table).
 - Calcul des **métriques clés** par département :
   - **Finance** : revenus, taxes, marges, créances
   - **Supply Chain** : délais de livraison, performance fournisseurs
@@ -117,8 +117,8 @@ Cloner le dépôt et démarrer l'environnement Docker :
 
 ```bash
 # Cloner le dépôt
-git clone https://github.com/votre-username/tpch-etl-pipeline.git
-cd tpch-etl-pipeline
+git clone https://github.com/abdoul15/tpch-analytics.git
+cd tpch-analytics
 
 # Démarrer l'environnement Docker
 make up
@@ -129,7 +129,7 @@ make up
 Plusieurs options sont disponibles pour exécuter le pipeline :
 
 ```bash
-# Exécuter uniquement la couche interface (par défaut)
+# Exécuter uniquement la couche interface (par défaut), ce qui exécute tout le pipeline
 make run-pipeline
 
 # Exécuter uniquement les vues pour le département Finance
@@ -138,29 +138,65 @@ make run-finance
 # Exécuter uniquement les vues pour le département Supply Chain
 make run-supply-chain
 
-# Exécuter toutes les couches (bronze, silver, gold, interface)
-make run-all
 ```
 
-### **3. Visualisation avec Apache Superset**
+## Configuration de Superset avec Trino pour accéder aux tables Delta
+
+### Architecture de la solution
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Superset  │────▶│    Trino    │────▶│  Delta Lake │
+│  (Dashboards)│     │ (SQL Engine)│     │  (Storage)  │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+Trino sert d'intermédiaire entre Superset et les tables Delta stockées dans MinIO(Superset n'a pas de connecteurs pour lire des tables delta stockées sur Minio, il faut donc un intemédiaire). Cette architecture permet :
+- Une séparation des préoccupations (Superset se concentre sur la visualisation)
+- De meilleures performances grâce au moteur de requête optimisé de Trino
+- Un accès direct aux tables Delta sans nécessiter Hive Metastore
+
+### Enregistrement des tables Delta dans Trino
+
+Pour faciliter l'accès aux tables Delta depuis Trino et Superset, J'ai créé un script qui enregistre automatiquement les tables Delta dans Trino. Ce script crée les schémas et les tables dans Trino qui pointent vers les données Delta stockées dans MinIO (cette étape est necessaire).
+
+Pour enregistrer les tables Delta dans Trino :
 
 ```bash
-# Démarrer Superset
-make run-superset
+make register-trino-tables
 ```
 
-Accéder à l'interface web de Superset :
-```
-URL: http://localhost:8088
-Identifiant: admin
-Mot de passe: admin123
-```
+Cette commande exécute le script `register_trino_tables.sh` qui :
+1. Crée le schéma pour les différents départements finance et supply chain dans Trino s'il n'existe pas
+2. Crée les tables dans Trino qui pointe vers les données Delta
 
-Pour configurer une connexion à Delta Lake dans Superset :
-1. Aller dans "Data" > "Databases" > "+ Database"
-2. Sélectionner "Trino" ou "Spark SQL" comme type de base de données
-3. Configurer la connexion avec les paramètres appropriés
-4. Créer des tableaux de bord pour visualiser les métriques clés
+### Accès aux tables Delta via Trino
+
+Trino est configuré pour accéder aux tables Delta stockées dans MinIO de deux façons :
+
+### Configuration de la connexion dans Superset
+
+1. Accédez à l'interface Superset à l'adresse http://localhost:8088 (identifiants : admin/admin123)
+
+2. Allez dans **Sources de données > Bases de données > + Base de données**
+
+3. Sélectionnez **Trino**, anciennement **Presto** comme type de base de données
+
+4. Configurez la connexion avec les paramètres suivants :
+   - **DISPLAY NAME**: Delta Tables
+   - **SQLALCHEMY URI**: trino://trino@trino:8080/delta
+
+5. Testez la connexion et enregistrez
+
+### Création de datasets et dashboards dans Superset
+
+1. Allez dans **Sources de données > Tables > + Table**
+
+2. Sélectionnez la base de données **Delta Tables**
+
+3. Sélectionnez le schéma qui vous intéresse **finance** ou un autre. Vous devez maintenant voir vos différentes métriques
+
+4. Vous pouvez maintenant créer des visualisations et des dashboards à partir de ces tables
 
 ### **4. Autres Commandes Utiles**
 
