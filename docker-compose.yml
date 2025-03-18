@@ -11,12 +11,13 @@ services:
       - "9090:8080"
       - "7077:7077"
       - '3002:3002' # Jupyter notebook
+      - '9083:9083' # Hive metastore
 
     volumes:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
       - ./notebooks:/opt/spark/notebooks
-      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline  # Add this line
+      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline  
     env_file:
       - .env.spark
   
@@ -31,7 +32,7 @@ services:
     volumes:
       - spark-logs:/opt/spark/spark-events
       - ./notebooks:/opt/spark/notebooks
-      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline  # Add this line
+      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline  
     ports:
       - '18080:18080'
   
@@ -42,7 +43,7 @@ services:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
       - ./notebooks:/opt/spark/notebooks
-      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline # Add this line
+      - ./tpch_etl_pipeline:/opt/spark/project/tpch_etl_pipeline 
     env_file:
       - .env.spark
   
@@ -102,6 +103,29 @@ services:
       timeout: 5s
       retries: 5
 
+  # Trino pour accéder aux tables Delta
+  trino:
+    image: 'trinodb/trino:414'
+    container_name: trino
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./trino/etc:/etc/trino
+      - ./trino/catalog:/etc/trino/catalog
+      - ./trino/delta-catalog:/etc/trino/delta-catalog
+      - trino-data:/data/trino
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      - minio
+      - spark-master
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Superset avec configuration simplifiée
   superset:
     image: apache/superset:latest
@@ -109,12 +133,14 @@ services:
     depends_on:
       upstream_data:
         condition: service_healthy
+      trino:
+        condition: service_healthy
     ports:
       - "8088:8088"
     environment:
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-superset-secret}
       # Utiliser SQLite pour simplifier la configuration
-      SQLALCHEMY_DATABASE_URI: sqlite:////app/superset_home/superset.db
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@upstream_data:5432/${POSTGRES_DB}
       PYTHONPATH: /app/pythonpath
       SUPERSET_LOAD_EXAMPLES: "yes"
       FLASK_ENV: development
@@ -142,3 +168,4 @@ volumes:
   postgres-data:
   tpch-data:
   superset-data:
+  trino-data:

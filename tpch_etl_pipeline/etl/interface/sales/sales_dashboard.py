@@ -11,30 +11,27 @@ def create_sales_dashboard_view(sales_metrics_data):
     Args:
         sales_metrics_data: DataFrame contenant les données de métriques commerciales
     """
-    # Renommer les colonnes pour plus de clarté business
+    # Renommer les colonnes pour plus de clarté business (format snake_case standardisé)
     renamed_data = sales_metrics_data.select(
-        col("date").alias("Date"),
-        col("market_segment").alias("Segment de Marché"),
-        col("customer_region").alias("Région Client"),
+        col("date").alias("date"),
+        col("market_segment").alias("segment_marche"),
+        col("customer_region").alias("region_client"),
         
         # Métriques de vente
-        col("total_revenue").alias("Chiffre d'Affaires"),
-        col("total_discounts").alias("Remises Totales"),
-        col("discount_percentage").alias("Taux de Remise (%)"),
+        col("total_revenue").alias("chiffre_affaires"),
+        col("total_discounts").alias("remises_totales"),
+        col("discount_percentage").alias("taux_remise_pct"),
         
         # Métriques de commande
-        col("order_count").alias("Nombre de Commandes"),
-        col("average_order_value").alias("Panier Moyen"),
+        col("order_count").alias("nombre_commandes"),
+        col("average_order_value").alias("panier_moyen"),
         
         # Métriques client
-        col("unique_customers").alias("Clients Uniques"),
-        col("revenue_per_customer").alias("CA par Client")
+        col("unique_customers").alias("clients_uniques"),
+        col("revenue_per_customer").alias("ca_par_client")
     )
 
-    # Créer une vue temporaire globale
-    renamed_data.createOrReplaceGlobalTempView("sales_dashboard")
-    
-    # Créer également une vue permanente dans le catalogue Hive/Spark SQL
+    # Créer une table permanente dans le catalogue Hive/Spark SQL
     renamed_data.write.format("delta").mode("overwrite").saveAsTable(
         "tpchdb.sales_dashboard_view"
     )
@@ -52,30 +49,27 @@ def create_product_performance_view(sales_metrics_data):
     Args:
         sales_metrics_data: DataFrame contenant les données de métriques commerciales
     """
-    # Sélectionner et renommer les colonnes pertinentes pour l'analyse des produits
+    # Sélectionner et renommer les colonnes pertinentes pour l'analyse des produits (format snake_case standardisé)
     renamed_data = sales_metrics_data.select(
-        col("date").alias("Date"),
-        col("market_segment").alias("Segment de Marché"),
-        col("customer_region").alias("Région Client"),
+        col("date").alias("date"),
+        col("market_segment").alias("segment_marche"),
+        col("customer_region").alias("region_client"),
         
         # Métriques produit
-        col("unique_products_sold").alias("Produits Distincts Vendus"),
-        col("total_items_sold").alias("Articles Vendus"),
-        col("items_per_order").alias("Articles par Commande"),
-        col("top_products_count").alias("Nombre Top Produits"),
+        col("unique_products_sold").alias("produits_distincts_vendus"),
+        col("total_items_sold").alias("articles_vendus"),
+        col("items_per_order").alias("articles_par_commande"),
+        col("top_products_count").alias("nombre_top_produits"),
         
         # Métriques de vente
-        col("total_revenue").alias("Chiffre d'Affaires"),
-        col("discount_percentage").alias("Taux de Remise (%)"),
+        col("total_revenue").alias("chiffre_affaires"),
+        col("discount_percentage").alias("taux_remise_pct"),
         
         # Métadonnées
-        col("etl_inserted").alias("Date de Mise à Jour")
+        col("etl_inserted").alias("date_mise_a_jour")
     )
 
-    # Créer une vue temporaire globale
-    renamed_data.createOrReplaceGlobalTempView("product_performance")
-    
-    # Créer également une vue permanente dans le catalogue Hive/Spark SQL
+    # Créer une table permanente dans le catalogue Hive/Spark SQL
     renamed_data.write.format("delta").mode("overwrite").saveAsTable(
         "tpchdb.product_performance_view"
     )
@@ -93,32 +87,29 @@ def create_customer_insights_view(sales_metrics_data):
     Args:
         sales_metrics_data: DataFrame contenant les données de métriques commerciales
     """
-    # Sélectionner et renommer les colonnes pertinentes pour l'analyse des clients
+    # Sélectionner et renommer les colonnes pertinentes pour l'analyse des clients (format snake_case standardisé)
     renamed_data = sales_metrics_data.select(
-        col("date").alias("Date"),
-        col("market_segment").alias("Segment de Marché"),
-        col("customer_region").alias("Région Client"),
+        col("date").alias("date"),
+        col("market_segment").alias("segment_marche"),
+        col("customer_region").alias("region_client"),
         
         # Métriques client
-        col("unique_customers").alias("Nombre de Clients"),
-        col("revenue_per_customer").alias("CA par Client"),
+        col("unique_customers").alias("nombre_clients"),
+        col("revenue_per_customer").alias("ca_par_client"),
         
         # Métriques de commande
-        col("order_count").alias("Nombre de Commandes"),
-        col("average_order_value").alias("Panier Moyen"),
-        col("items_per_order").alias("Articles par Commande"),
+        col("order_count").alias("nombre_commandes"),
+        col("average_order_value").alias("panier_moyen"),
+        col("items_per_order").alias("articles_par_commande"),
         
         # Métriques de priorité
-        col("high_priority_order_percentage").alias("Commandes Prioritaires (%)"),
+        col("high_priority_order_percentage").alias("commandes_prioritaires_pct"),
         
         # Métadonnées
-        col("etl_inserted").alias("Date de Mise à Jour")
+        col("etl_inserted").alias("date_mise_a_jour")
     )
 
-    # Créer une vue temporaire globale
-    renamed_data.createOrReplaceGlobalTempView("customer_insights")
-    
-    # Créer également une vue permanente dans le catalogue Hive/Spark SQL
+    # Créer une table permanente dans le catalogue Hive/Spark SQL
     renamed_data.write.format("delta").mode("overwrite").saveAsTable(
         "tpchdb.customer_insights_view"
     )

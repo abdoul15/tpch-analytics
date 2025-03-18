@@ -135,18 +135,19 @@ def run_interface_layer(spark):
     finance_metrics.run()
     finance_data = finance_metrics.read().curr_data
     
-    supply_chain_metrics = SupplyChainMetricsGoldETL(spark=spark)
-    supply_chain_metrics.run()
-    supply_chain_data = supply_chain_metrics.read().curr_data
+    # supply_chain_metrics = SupplyChainMetricsGoldETL(spark=spark)
+    # supply_chain_metrics.run()
+    # supply_chain_data = supply_chain_metrics.read().curr_data
 
     # Création des vues pour chaque département
     print('\nCréation des vues pour le département Finance:')
-    create_finance_dashboard_view(finance_data)
+    data=create_finance_dashboard_view(finance_data,spark)
+    # print(f"Nombre de ligne = {data.count()}")
     
-    print('\nCréation des vues pour le département Supply Chain:')
-    create_supply_chain_dashboard_view(supply_chain_data)
-    create_supplier_performance_view(supply_chain_data)
-    create_inventory_analysis_view(supply_chain_data)
+    # print('\nCréation des vues pour le département Supply Chain:')
+    # create_supply_chain_dashboard_view(supply_chain_data)
+    # create_supplier_performance_view(supply_chain_data)
+    # create_inventory_analysis_view(supply_chain_data)
     
     print('\nVues créées avec succès!')
 
@@ -217,13 +218,13 @@ def run_department_views(spark, department):
 if __name__ == '__main__':
     import sys
     
-    # Création de la session avec toutes les configurations
+    # Création de la session Spark avec les configurations mémoire et support Hive
     spark = (
         SparkSession.builder.appName("TPCH Data Pipeline")
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .enableHiveSupport()
         .getOrCreate()
     )
+
     
     spark.sparkContext.setLogLevel("ERROR")
     

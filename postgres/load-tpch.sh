@@ -21,11 +21,19 @@ done
 
 echo "Chargement des données TPC-H dans PostgreSQL..."
 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} <<-EOSQL
+    TRUNCATE TABLE lineitem, orders, customer, partsupp, supplier, part, nation, region CASCADE;
+    
     \copy nation FROM '$TEMP_DIR/nation.tbl' DELIMITER '|' NULL AS '';
     \copy region FROM '$TEMP_DIR/region.tbl' DELIMITER '|' NULL AS '';
     \copy part FROM '$TEMP_DIR/part.tbl' DELIMITER '|' NULL AS '';
     \copy supplier FROM '$TEMP_DIR/supplier.tbl' DELIMITER '|' NULL AS '';
-    \copy partsupp FROM '$TEMP_DIR/partsupp.tbl' DELIMITER '|' NULL AS '';
+    
+    -- Pour partsupp, création une table temporaire et gestion des doublons
+    CREATE TEMP TABLE temp_partsupp (LIKE partsupp);
+    \copy temp_partsupp FROM '$TEMP_DIR/partsupp.tbl' DELIMITER '|' NULL AS '';
+    INSERT INTO partsupp SELECT DISTINCT * FROM temp_partsupp ON CONFLICT DO NOTHING;
+    DROP TABLE temp_partsupp;
+    
     \copy customer FROM '$TEMP_DIR/customer.tbl' DELIMITER '|' NULL AS '';
     \copy orders FROM '$TEMP_DIR/orders.tbl' DELIMITER '|' NULL AS '';
     \copy lineitem FROM '$TEMP_DIR/lineitem.tbl' DELIMITER '|' NULL AS '';

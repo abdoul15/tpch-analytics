@@ -41,18 +41,7 @@ class CustomerBronzeETL(TableETL):
         table_name = 'public.customer'
 
         config = TABLE_PARTITION_CONFIG.get(table_name)
-        
-        if config:
-            customer_data = get_table_from_db(
-                table_name=table_name,
-                spark=self.spark,
-                partition_column=config['partition_column'],
-                num_partitions=config['num_partitions']
-            )
-            
-        else:
-            customer_data = get_table_from_db(table_name, self.spark)
-            
+        customer_data = get_table_from_db(table_name, self.spark,partition_column=config['partition_column'])    
 
         # Creation d'une instance ETL
         etl_dataset = ETLDataSet(
@@ -68,13 +57,17 @@ class CustomerBronzeETL(TableETL):
         return [etl_dataset]
 
     def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
-        customer_data = upstream_datasets[0].curr_data
+        # Mettre en cache le DataFrame pour éviter les recalculs
+        customer_data = upstream_datasets[0].curr_data.cache()
         current_timestamp = datetime.now()
 
         # Notre transformation d'ajout d'une nouvelle colonne
         transformed_data = customer_data.withColumn(
             'etl_inserted', lit(current_timestamp)
         )
+
+        # Libérer la mémoire après utilisation
+        customer_data.unpersist()
 
         etl_dataset = ETLDataSet(
             name=self.name,
@@ -107,14 +100,64 @@ class CustomerBronzeETL(TableETL):
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            latest_partition = (
-                self.spark.read.format(self.data_format)
-                .load(self.storage_path)
-                .selectExpr('max(etl_inserted)')
-                .collect()[0][0]
-            )
-            partition_filter = f"etl_inserted = '{latest_partition}'"
-        # Read the customer data from the Delta Lake table
+            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
+            try:
+                from delta.tables import DeltaTable
+                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+                
+                # Obtenir la dernière version de la table sans collect()
+                # Utiliser une vue temporaire pour éviter collect()
+                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
+                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
+                
+                # Lire directement la dernière version sans filtrer
+                user_data = (
+                    self.spark.read.format(self.data_format)
+                    .option("versionAsOf", latest_version)
+                    .load(self.storage_path)
+                )
+                
+                # Explicitly select columns
+                user_data = user_data.select(
+                    col('c_custkey'),
+                    col('c_name'),
+                    col('c_address'),
+                    col('c_nationkey'),
+                    col('c_phone'),
+                    col('c_acctbal'),
+                    col('c_mktsegment'),
+                    col('c_comment'),
+                    col('etl_inserted'),
+                )
+                
+                # Créer l'ETLDataSet et retourner
+                etl_dataset = ETLDataSet(
+                    name=self.name,
+                    curr_data=user_data,
+                    primary_keys=self.primary_keys,
+                    storage_path=self.storage_path,
+                    data_format=self.data_format,
+                    database=self.database,
+                    partition_keys=self.partition_keys,
+                )
+                
+                print(f"Lecture des données dans Customer (Bronze) ok")
+                return etl_dataset
+                
+            except Exception as e:
+                # Fallback à la méthode originale si l'approche Delta échoue
+                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
+                
+                # Utiliser une vue temporaire pour éviter collect()
+                self.spark.read.format(self.data_format) \
+                    .load(self.storage_path) \
+                    .selectExpr('max(etl_inserted) as max_etl_inserted') \
+                    .createOrReplaceTempView("latest_partition")
+                
+                latest_partition = self.spark.sql("SELECT max_etl_inserted FROM latest_partition").first()[0]
+                partition_filter = f"etl_inserted = '{latest_partition}'"
+        
+        # Méthode standard si on a un filtre de partition
         user_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)
@@ -144,5 +187,7 @@ class CustomerBronzeETL(TableETL):
             database=self.database,
             partition_keys=self.partition_keys,
         )
+
+        print(f"Lecture des données dans Customer (Bronze) ok")
 
         return etl_dataset

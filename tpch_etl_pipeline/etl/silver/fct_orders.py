@@ -62,15 +62,17 @@ class FctOrdersSilverETL(TableETL):
     def transform_upstream(
         self, upstream_datasets: List[ETLDataSet]
     ) -> ETLDataSet:
-        orders_data = upstream_datasets[0].curr_data
-        lineitem_data = upstream_datasets[1].curr_data
+        # Mettre en cache les DataFrames pour éviter les recalculs
+        orders_data = upstream_datasets[0].curr_data.cache()
+        lineitem_data = upstream_datasets[1].curr_data.cache()
         current_timestamp = datetime.now()
 
         # Enrichir les lignes de commande avec les informations de commande
+        # Utiliser broadcast pour orders_data car c'est généralement plus petit que lineitem_data
         transformed_data = (
             lineitem_data
             .join(
-                orders_data,
+                broadcast(orders_data),
                 lineitem_data["l_orderkey"] == orders_data["o_orderkey"],
                 "inner"
             )
@@ -164,6 +166,9 @@ class FctOrdersSilverETL(TableETL):
         self, partition_values: Optional[Dict[str, str]] = None
     ) -> ETLDataSet:
         # Select the desired columns
+
+        print(f"Lecture des données dans fct_orders (Silver) démarré")
+
         selected_columns = [
             # Clés
             col("order_key"),
@@ -220,14 +225,52 @@ class FctOrdersSilverETL(TableETL):
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            latest_partition = (
-                self.spark.read.format(self.data_format)
-                .load(self.storage_path)
-                .selectExpr("max(etl_inserted)")
-                .collect()[0][0]
-            )
-            partition_filter = f"etl_inserted = '{latest_partition}'"
-
+            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
+            try:
+                from delta.tables import DeltaTable
+                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+                
+                # Obtenir la dernière version de la table sans collect()
+                # Utiliser une vue temporaire pour éviter collect()
+                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
+                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
+                
+                # Lire directement la dernière version sans filtrer
+                fct_orders_data = (
+                    self.spark.read.format(self.data_format)
+                    .option("versionAsOf", latest_version)
+                    .load(self.storage_path)
+                )
+                
+                # Sélectionner les colonnes
+                fct_orders_data = fct_orders_data.select(selected_columns)
+                
+                # Créer l'ETLDataSet et retourner
+                etl_dataset = ETLDataSet(
+                    name=self.name,
+                    curr_data=fct_orders_data,
+                    primary_keys=self.primary_keys,
+                    storage_path=self.storage_path,
+                    data_format=self.data_format,
+                    database=self.database,
+                    partition_keys=self.partition_keys,
+                )
+                
+                print(f"Lecture des données dans fct_orders (Silver) ok")
+                return etl_dataset
+                
+            except Exception as e:
+                # Fallback à la méthode originale si l'approche Delta échoue
+                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
+                latest_partition = (
+                    self.spark.read.format(self.data_format)
+                    .load(self.storage_path)
+                    .selectExpr("max(etl_inserted)")
+                    .collect()[0][0]
+                )
+                partition_filter = f"etl_inserted = '{latest_partition}'"
+        
+        # Méthode standard si on a un filtre de partition
         fct_orders_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)
@@ -246,5 +289,7 @@ class FctOrdersSilverETL(TableETL):
             database=self.database,
             partition_keys=self.partition_keys,
         )
+
+        print(f"Lecture des données dans fct_orders (Silver) ok")
 
         return etl_dataset

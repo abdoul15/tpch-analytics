@@ -194,19 +194,20 @@ class TableETL(ABC):
         Args:
             data: L'objet ETLDataSet contenant les données à charger
         """
+
+       
+        target_partitions = data.curr_data.rdd.getNumPartitions()
         
-        self.spark.sql(f"CREATE DATABASE IF NOT EXISTS {self.database}")
-        # Nom complet de la table (database.table_name)
-        table_name = f"{data.database}.{data.name}"
-        
-        # Sauvegarder les données en tant que table Delta dans MinIO S3
-        data.curr_data.write \
-            .option("mergeSchema", "true") \
-            .format(data.data_format) \
-            .mode("overwrite") \
-            .partitionBy(data.partition_keys) \
-            .option("path", data.storage_path) \
-            .saveAsTable(table_name)
+        # Utiliser repartition au lieu de coalesce pour une meilleure distribution
+        data.curr_data.repartition(target_partitions).write.option("mergeSchema", "true").format(
+            data.data_format
+        ).mode("overwrite").partitionBy(data.partition_keys).save(
+            data.storage_path
+        )
+
+        # Optimisation des fichiers Delta
+        delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+        delta_table.optimize().executeCompaction()
 
 
     def run(self) -> None:
@@ -230,6 +231,17 @@ class TableETL(ABC):
             )
         if self.load_data:
             self.load(transformed_data)
+
+
+        # from delta.tables import DeltaTable
+
+        # # Lire la table Delta
+        # delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+
+        # # Afficher les détails (dont le nombre de fichiers)
+        # details = delta_table.detail().collect()[0]
+        # print(f"Nombre de fichiers : {details['numFiles']}")
+        # print(f"Taille totale : {details['sizeInBytes'] / (1024 ** 2):.2f} Mo")
 
 
     @abstractmethod

@@ -12,26 +12,26 @@ def create_daily_sales_report_view(daily_sales_metrics_data):
     Args:
         daily_sales_metrics_data: DataFrame contenant les données de métriques de ventes quotidiennes
     """
-    # Rename columns pour plus de clarté business
+    # Rename columns pour plus de clarté business (format snake_case standardisé)
     renamed_data = daily_sales_metrics_data.select(
-        col("date").alias("Date"),
-        col("market_segment").alias("Market Segment"),
-        col("region").alias("Region"),
-        col("total_sales").alias("Total Revenue"),
-        col("average_order_value").alias("Average Order Value"),
-        col("number_of_orders").alias("Order Count"),
-        col("late_delivery_percentage").alias("Late Delivery %"),
-        col("fulfillment_rate").alias("Fulfillment Rate %")
+        col("date").alias("date"),
+        col("market_segment").alias("segment_marche"),
+        col("region").alias("region"),
+        col("total_sales").alias("revenu_total"),
+        col("average_order_value").alias("valeur_moyenne_commande"),
+        col("number_of_orders").alias("nombre_commandes"),
+        col("late_delivery_percentage").alias("pourcentage_livraison_tardive"),
+        col("fulfillment_rate").alias("taux_execution_pct")
     )
 
-    # 1. Créer une vue temporaire globale pour un accès rapide
     renamed_data.createOrReplaceGlobalTempView("daily_sales_report")
     
-    # 2. Créer une table permanente dans le catalogue pour un accès via SQL
-    renamed_data.write.format("delta").mode("overwrite").saveAsTable(
-        "tpchdb.daily_sales_report_view"
-    )
+    # # Créer une table permanente dans le catalogue pour un accès via SQL
+    # renamed_data.write.format("delta").mode("overwrite").saveAsTable(
+    #     "tpchdb.daily_sales_report_view"
+    # )
+
     
-    print("Vue 'daily_sales_report' créée avec succès (temporaire et permanente)")
+    #return renamed_data
     
-    return renamed_data
+    #return renamed_data

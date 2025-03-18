@@ -62,21 +62,25 @@ class WideOrderDetailsGoldETL(TableETL):
     def transform_upstream(
         self, upstream_datasets: List[ETLDataSet]
     ) -> ETLDataSet:
-        orders_data = upstream_datasets[0].curr_data
-        customer_data = upstream_datasets[1].curr_data
-        part_data = upstream_datasets[2].curr_data
+        # Mettre en cache les DataFrames pour éviter les recalculs
+        orders_data = upstream_datasets[0].curr_data.cache()
+        customer_data = upstream_datasets[1].curr_data.cache()
+        part_data = upstream_datasets[2].curr_data.cache()
         current_timestamp = datetime.now()
+
+        # Utiliser broadcast pour les petites tables (dimension)
+        from pyspark.sql.functions import broadcast
 
         # Joindre les données de commande avec client et produit
         wide_orders_data = (
             orders_data
             .join(
-                customer_data,
+                broadcast(customer_data),  # Broadcast pour la table client (petite)
                 orders_data["customer_key"] == customer_data["customer_key"],
                 "left"
             )
             .join(
-                part_data,
+                broadcast(part_data),  # Broadcast pour la table part (petite)
                 orders_data["part_key"] == part_data["part_key"],
                 "left"
             )
@@ -84,8 +88,6 @@ class WideOrderDetailsGoldETL(TableETL):
             .drop(customer_data["customer_key"])
             .drop(part_data["part_key"])
         )
-
-        
 
         # Supprimer les colonnes etl_inserted des tables sources
         wide_orders_data = (
@@ -95,6 +97,11 @@ class WideOrderDetailsGoldETL(TableETL):
             .drop(part_data["etl_inserted"])
             .withColumn("etl_inserted", lit(current_timestamp))
         )
+        
+        # Libérer la mémoire après utilisation
+        orders_data.unpersist()
+        customer_data.unpersist()
+        part_data.unpersist()
 
         etl_dataset = ETLDataSet(
             name=self.name,
@@ -161,14 +168,50 @@ class WideOrderDetailsGoldETL(TableETL):
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            latest_partition = (
-                self.spark.read.format(self.data_format)
-                .load(self.storage_path)
-                .selectExpr("max(etl_inserted)")
-                .collect()[0][0]
-            )
-            partition_filter = f"etl_inserted = '{latest_partition}'"
-
+            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
+            try:
+                from delta.tables import DeltaTable
+                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+                
+                # Obtenir la dernière version de la table sans collect()
+                # Utiliser une vue temporaire pour éviter collect()
+                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
+                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
+                
+                # Lire directement la dernière version sans filtrer
+                wide_orders_data = (
+                    self.spark.read.format(self.data_format)
+                    .option("versionAsOf", latest_version)
+                    .load(self.storage_path)
+                    .select(selected_columns)
+                )
+                
+                # Créer l'ETLDataSet et retourner
+                etl_dataset = ETLDataSet(
+                    name=self.name,
+                    curr_data=wide_orders_data,
+                    primary_keys=self.primary_keys,
+                    storage_path=self.storage_path,
+                    data_format=self.data_format,
+                    database=self.database,
+                    partition_keys=self.partition_keys,
+                )
+                
+                return etl_dataset
+                
+            except Exception as e:
+                # Fallback à la méthode originale si l'approche Delta échoue
+                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
+                # Utiliser une vue temporaire pour éviter collect()
+                self.spark.read.format(self.data_format) \
+                    .load(self.storage_path) \
+                    .selectExpr('max(etl_inserted) as max_etl_inserted') \
+                    .createOrReplaceTempView("latest_partition")
+                
+                latest_partition = self.spark.sql("SELECT max_etl_inserted FROM latest_partition").first()[0]
+                partition_filter = f"etl_inserted = '{latest_partition}'"
+        
+        # Méthode standard si on a un filtre de partition
         wide_orders_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)

@@ -66,35 +66,44 @@ class DimPartSilverETL(TableETL):
         return upstream_etl_datasets
 
     def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
-        part_data = upstream_datasets[0].curr_data
-        partsupp_data = upstream_datasets[1].curr_data
-        supplier_data = upstream_datasets[2].curr_data
-        nation_data = upstream_datasets[3].curr_data
-        region_data = upstream_datasets[4].curr_data
+        # Mettre en cache les DataFrames pour éviter les recalculs
+        part_data = upstream_datasets[0].curr_data.cache()
+        partsupp_data = upstream_datasets[1].curr_data.cache()
+        supplier_data = upstream_datasets[2].curr_data.cache()
+        nation_data = upstream_datasets[3].curr_data.cache()
+        region_data = upstream_datasets[4].curr_data.cache()
         current_timestamp = datetime.now()
 
         # Enrichir avec les données géographiques des fournisseurs
-        geo_data = nation_data.join(
-            broadcast(region_data),
-            nation_data['n_nationkey'] == region_data['r_regionkey'],
-            'left'
-        ).select(
-            col('n_nationkey'),
-            col('n_name').alias('manufacturing_country'),
-            col('r_name').alias('manufacturing_region'),
+        geo_data = (
+            nation_data.join(
+                broadcast(region_data),
+                nation_data['n_nationkey'] == region_data['r_regionkey'],
+                'left'
+            )
+            .select(
+                col('n_nationkey'),
+                col('n_name').alias('manufacturing_country'),
+                col('r_name').alias('manufacturing_region'),
+            )
+            .cache()  # Mettre en cache geo_data car il est utilisé dans la jointure suivante
         )
 
         # Enrichir les données fournisseur avec la géographie
-        supplier_enriched = supplier_data.join(
-            broadcast(geo_data), 
-            supplier_data['s_nationkey'] == geo_data['n_nationkey'], 
-            'left'
-        ).select(
-            col('s_suppkey'),
-            col('s_name').alias('supplier_name'),
-            col('s_acctbal').alias('supplier_account_balance'),
-            col('manufacturing_country'),
-            col('manufacturing_region'),
+        supplier_enriched = (
+            supplier_data.join(
+                broadcast(geo_data), 
+                supplier_data['s_nationkey'] == geo_data['n_nationkey'], 
+                'left'
+            )
+            .select(
+                col('s_suppkey'),
+                col('s_name').alias('supplier_name'),
+                col('s_acctbal').alias('supplier_account_balance'),
+                col('manufacturing_country'),
+                col('manufacturing_region'),
+            )
+            .cache()  # Mettre en cache supplier_enriched car il est utilisé dans la jointure suivante
         )
 
         # Transformation des données produit
@@ -135,6 +144,15 @@ class DimPartSilverETL(TableETL):
             # Supprimer les colonnes de jointure redondantes
             .drop('ps_partkey', 'ps_suppkey')
         )
+
+        # Libérer la mémoire après utilisation
+        part_data.unpersist()
+        partsupp_data.unpersist()
+        supplier_data.unpersist()
+        nation_data.unpersist()
+        region_data.unpersist()
+        geo_data.unpersist()
+        supplier_enriched.unpersist()
 
         # Create a new ETLDataSet instance with the transformed data
         etl_dataset = ETLDataSet(
@@ -192,15 +210,51 @@ class DimPartSilverETL(TableETL):
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            latest_partition = (
-                self.spark.read.format(self.data_format)
-                .load(self.storage_path)
-                .selectExpr("max(etl_inserted)")
-                .collect()[0][0]
-            )
-            partition_filter = f"etl_inserted = '{latest_partition}'"
-
-        # Read the transformed data from the Delta Lake table
+            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
+            try:
+                from delta.tables import DeltaTable
+                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+                
+                # Obtenir la dernière version de la table sans collect()
+                # Utiliser une vue temporaire pour éviter collect()
+                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
+                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
+                
+                # Lire directement la dernière version sans filtrer
+                dim_part_data = (
+                    self.spark.read.format(self.data_format)
+                    .option("versionAsOf", latest_version)
+                    .load(self.storage_path)
+                )
+                
+                # Sélectionner les colonnes
+                dim_part_data = dim_part_data.select(selected_columns)
+                
+                # Créer l'ETLDataSet et retourner
+                etl_dataset = ETLDataSet(
+                    name=self.name,
+                    curr_data=dim_part_data,
+                    primary_keys=self.primary_keys,
+                    storage_path=self.storage_path,
+                    data_format=self.data_format,
+                    database=self.database,
+                    partition_keys=self.partition_keys,
+                )
+                
+                return etl_dataset
+                
+            except Exception as e:
+                # Fallback à la méthode originale si l'approche Delta échoue
+                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
+                latest_partition = (
+                    self.spark.read.format(self.data_format)
+                    .load(self.storage_path)
+                    .selectExpr("max(etl_inserted)")
+                    .collect()[0][0]
+                )
+                partition_filter = f"etl_inserted = '{latest_partition}'"
+        
+        # Méthode standard si on a un filtre de partition
         dim_part_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)

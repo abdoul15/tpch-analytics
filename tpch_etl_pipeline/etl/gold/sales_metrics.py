@@ -217,13 +217,49 @@ class SalesMetricsGoldETL(TableETL):
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            latest_partition = (
-                self.spark.read.format(self.data_format)
-                .load(self.storage_path)
-                .selectExpr("max(etl_inserted)")
-                .collect()[0][0]
-            )
-            partition_filter = f"etl_inserted = '{latest_partition}'"
+            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
+            try:
+                from delta.tables import DeltaTable
+                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
+                
+                # Obtenir la dernière version de la table sans collect()
+                # Utiliser une vue temporaire pour éviter collect()
+                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
+                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
+                
+                # Lire directement la dernière version sans filtrer
+                sales_metrics = (
+                    self.spark.read.format(self.data_format)
+                    .option("versionAsOf", latest_version)
+                    .load(self.storage_path)
+                    .select(selected_columns)
+                )
+                
+                # Créer l'ETLDataSet et retourner
+                etl_dataset = ETLDataSet(
+                    name=self.name,
+                    curr_data=sales_metrics,
+                    primary_keys=self.primary_keys,
+                    storage_path=self.storage_path,
+                    data_format=self.data_format,
+                    database=self.database,
+                    partition_keys=self.partition_keys,
+                )
+                
+                return etl_dataset
+                
+            except Exception as e:
+                # Fallback à la méthode originale si l'approche Delta échoue
+                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
+                
+                # Utiliser une vue temporaire pour éviter collect()
+                self.spark.read.format(self.data_format) \
+                    .load(self.storage_path) \
+                    .selectExpr('max(etl_inserted) as max_etl_inserted') \
+                    .createOrReplaceTempView("latest_partition")
+                
+                latest_partition = self.spark.sql("SELECT max_etl_inserted FROM latest_partition").first()[0]
+                partition_filter = f"etl_inserted = '{latest_partition}'"
 
         sales_metrics = (
             self.spark.read.format(self.data_format)

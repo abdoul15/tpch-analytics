@@ -21,17 +21,15 @@ from tpch_etl_pipeline.etl.interface.daily_sales_report import create_daily_sale
 
 def test_bronze_layer(spark):
     print('=================================')
-    # print('Testing Bronze Layer')
-    # print('=================================')
+    print('Testing Bronze Layer')
+    print('=================================')
 
-    # print('\nTesting Customer Bronze:')
-    # run_upstream=False
-    # customer_bronze = CustomerBronzeETL(spark=spark,run_upstream=run_upstream)
-    # if run_upstream:  # Vérification explicite
-    #     customer_bronze.run()  # Exécution conditionnelle
-    # else : 
-    #     latest_data = customer_bronze.read().curr_data
-    #     print(f"Nombre de ligne = {latest_data.count()}")
+    print('\nTesting Customer Bronze:')
+    customer_bronze = CustomerBronzeETL(spark=spark)
+    customer_bronze.run()
+    latest_data = customer_bronze.read().curr_data
+    print(latest_data.show())
+    #print(f"Nombre de ligne = {latest_data.count()}")
     
     # print('\nTesting Part Bronze:')
     # part_bronze = PartBronzeETL(spark=spark)
@@ -52,13 +50,21 @@ def test_bronze_layer(spark):
     # orders_df.explain()
 
 
-    # line_item = LineItemBronzeETL(spark=spark)
-    # #line_item.run()
-    # line_item_df = line_item.read().curr_data
-    # # print(f"Number of partitions = {line_item_df.rdd.getNumPartitions()}")
+    line_item = LineItemBronzeETL(spark=spark)
+    line_item.run()
+    line_item_df = line_item.read().curr_data
+    print(line_item_df.show())
+    # print(f"Number of partitions = {line_item_df.rdd.getNumPartitions()}")
     # # print(line_item_df.select("l_shipdate").distinct().count())  # Si > 1000, repensez le partitionnement
     # line_item.getDataFrameStats(line_item,"l_orderkey")
     # # print(f"Column for partition = {line_item.partition_keys}")
+
+
+def test_silver_layer(spark):
+    fct_orders = DimCustomerSilverETL(spark)
+    fct_orders.run()
+    print(fct_orders.read().curr_data.show())
+
 
 
 def run_code(spark): 
