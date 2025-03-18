@@ -11,7 +11,6 @@ services:
       - "9090:8080"
       - "7077:7077"
       - '3002:3002' # Jupyter notebook
-      - '9083:9083' # Hive metastore
 
     volumes:
       - spark-logs:/opt/spark/spark-events
@@ -119,7 +118,6 @@ services:
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
       - minio
-      - spark-master
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
       interval: 10s

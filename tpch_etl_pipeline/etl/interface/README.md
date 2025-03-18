@@ -120,25 +120,49 @@ make run-bi
 curl http://localhost:8080/v1/info
 ```
 
+### Enregistrement des tables Delta dans Trino
+
+Pour faciliter l'accès aux tables Delta depuis Trino et Superset, nous avons créé un script qui enregistre automatiquement les tables Delta dans Trino. Ce script crée les schémas et les tables dans Trino qui pointent vers les données Delta stockées dans MinIO.
+
+Pour enregistrer les tables Delta dans Trino :
+
+```bash
+make register-trino-tables
+```
+
+Cette commande exécute le script `register_trino_tables.sh` qui :
+1. Crée le schéma finance dans Trino s'il n'existe pas
+2. Crée la table finance_dashboard_view dans Trino qui pointe vers les données Delta
+
 ### Accès aux tables Delta via Trino
 
-Trino est configuré pour accéder aux tables Delta stockées dans MinIO en utilisant un catalogue de fichiers (file-based catalog). Cette approche permet d'accéder directement aux tables Delta en spécifiant leur chemin S3.
+Trino est configuré pour accéder aux tables Delta stockées dans MinIO de deux façons :
 
-Pour vérifier que Trino peut accéder aux tables Delta :
+#### 1. Via les tables enregistrées
 
-1. Connectez-vous à Trino en ligne de commande :
+Une fois les tables enregistrées avec `make register-trino-tables`, vous pouvez y accéder directement par leur nom :
+
 ```bash
 docker exec -it trino trino
 ```
 
-2. Interrogez directement une table Delta en spécifiant son chemin S3 :
+```sql
+SELECT * 
+FROM finance.finance_dashboard_view
+LIMIT 5;
+```
+
+#### 2. Via les chemins S3 directs
+
+Vous pouvez également accéder aux tables Delta en spécifiant directement leur chemin S3 :
+
 ```sql
 SELECT * 
 FROM delta."s3a://spark-bucket/delta/interface/finance/dashboard"
 LIMIT 5;
 ```
 
-3. Vous pouvez également explorer les métadonnées de la table :
+Vous pouvez explorer les métadonnées de la table :
 ```sql
 DESCRIBE delta."s3a://spark-bucket/delta/interface/finance/dashboard";
 ```
@@ -176,40 +200,35 @@ DESCRIBE delta."s3a://spark-bucket/delta/interface/finance/dashboard";
 
 > **Note**: Bien que cette approche nécessite de spécifier les chemins S3 complets, elle offre plus de flexibilité et évite d'avoir à enregistrer explicitement chaque table.
 
-### Référence des chemins pour les tables Delta
+### Référence des tables et chemins
 
-Pour faciliter l'accès aux tables Delta, voici les chemins complets pour chaque table dans Trino :
+Pour faciliter l'accès aux tables Delta, voici les références pour chaque table dans Trino :
 
-| Nom de la table | Chemin dans Trino |
-|-----------------|-------------------|
-| Finance Dashboard | `delta."s3a://spark-bucket/delta/interface/finance/dashboard"` |
-| Supply Chain Dashboard | `delta."s3a://spark-bucket/delta/interface/supply_chain/dashboard"` |
-| Supplier Performance | `delta."s3a://spark-bucket/delta/interface/supply_chain/supplier_performance"` |
-| Inventory Analysis | `delta."s3a://spark-bucket/delta/interface/supply_chain/inventory_analysis"` |
-| Sales Dashboard | `delta."s3a://spark-bucket/delta/interface/sales/dashboard"` |
-| Product Performance | `delta."s3a://spark-bucket/delta/interface/sales/product_performance"` |
-| Customer Insights | `delta."s3a://spark-bucket/delta/interface/sales/customer_insights"` |
-| Daily Sales Report | `delta."s3a://spark-bucket/delta/interface/daily_sales_report"` |
+| Nom de la table | Table enregistrée | Chemin S3 direct |
+|-----------------|-------------------|-------------------|
+| Finance Dashboard | `finance.finance_dashboard_view` | `delta."s3a://spark-bucket/delta/interface/finance/dashboard"` |
+| Supply Chain Dashboard | - | `delta."s3a://spark-bucket/delta/interface/supply_chain/dashboard"` |
+| Supplier Performance | - | `delta."s3a://spark-bucket/delta/interface/supply_chain/supplier_performance"` |
+| Inventory Analysis | - | `delta."s3a://spark-bucket/delta/interface/supply_chain/inventory_analysis"` |
+| Sales Dashboard | - | `delta."s3a://spark-bucket/delta/interface/sales/dashboard"` |
+| Product Performance | - | `delta."s3a://spark-bucket/delta/interface/sales/product_performance"` |
+| Customer Insights | - | `delta."s3a://spark-bucket/delta/interface/sales/customer_insights"` |
+| Daily Sales Report | - | `delta."s3a://spark-bucket/delta/interface/daily_sales_report"` |
 
-### Dépannage
+> **Note**: Pour enregistrer d'autres tables, vous pouvez modifier le script `register_trino_tables.sh` pour ajouter les commandes nécessaires.
 
-Si vous rencontrez des problèmes de connexion :
 
-1. Vérifiez que les services Trino et MinIO sont en cours d'exécution :
-```bash
-docker ps | grep -E 'trino|minio'
-```
-
-2. Vérifiez les logs de Trino pour identifier les erreurs spécifiques :
-```bash
-docker logs trino
-```
 
 3. Testez la connexion à Trino directement :
 ```bash
-docker exec -it trino trino --execute "SELECT * FROM delta.default.finance_dashboard_view LIMIT 5"
+docker exec -it trino trino --execute "SELECT * FROM finance.finance_dashboard_view LIMIT 5"
 ```
 
-4. Vérifiez que les chemins S3 sont corrects et que les tables Delta existent dans MinIO :
+4. Si l'enregistrement des tables échoue, essayez de réexécuter le script :
+```bash
+make register-trino-tables
+```
+
+5. Vérifiez que les chemins S3 sont corrects et que les tables Delta existent dans MinIO :
 ```bash
 docker exec -it minio mc ls myminio/spark-bucket/delta/interface/

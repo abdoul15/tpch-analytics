@@ -66,6 +66,10 @@ run-superset:
 run-bi:
 	docker compose up -d trino superset
 
+# Enregistrer les tables Delta dans Trino
+register-trino-tables:
+	./register_trino_tables.sh
+
 # Exécuter tous les tests
 test:
 	docker exec spark-master pytest -xvs /opt/spark/project/tpch_etl_pipeline/tests
