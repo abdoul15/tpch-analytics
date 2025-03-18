@@ -170,9 +170,6 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 1. Crée le schéma pour les différents départements finance et supply chain dans Trino s'il n'existe pas
 2. Crée les tables dans Trino qui pointe vers les données Delta
 
-### Accès aux tables Delta via Trino
-
-Trino est configuré pour accéder aux tables Delta stockées dans MinIO de deux façons :
 
 ### Configuration de la connexion dans Superset
 
@@ -198,7 +195,7 @@ Trino est configuré pour accéder aux tables Delta stockées dans MinIO de deux
 
 4. Vous pouvez maintenant créer des visualisations et des dashboards à partir de ces tables
 
-### **4. Autres Commandes Utiles**
+### **3. Autres Commandes Utiles**
 
 ```bash
 # Démarrer un notebook Jupyter
