@@ -1,0 +1,51 @@
+{
+  "data_asset_type": null,
+  "expectation_suite_name": "lineitem",
+  "expectations": [
+    {
+      "expectation_type": "expect_table_columns_to_match_ordered_list",
+      "kwargs": {
+        "column_list": [
+          "l_orderkey",
+          "l_partkey",
+          "l_suppkey",
+          "l_linenumber",
+          "l_quantity",
+          "l_extendedprice",
+          "l_discount",
+          "l_tax",
+          "l_returnflag",
+          "l_linestatus",
+          "l_shipdate",
+          "l_commitdate",
+          "l_receiptdate",
+          "l_shipinstruct",
+          "l_shipmode",
+          "l_comment",
+          "etl_inserted"
+        ]
+      },
+      "meta": {
+        "notes": {
+          "content": "Vérifie que toutes les colonnes attendues sont présentes dans le bon ordre",
+          "format": "markdown"
+        }
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "l_orderkey"
+      },
+      "meta": {
+        "notes": {
+          "content": "La clé de commande ne doit pas contenir de valeurs nulles",
+          "format": "markdown"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "great_expectations_version": "0.18.21"
+  }
+}

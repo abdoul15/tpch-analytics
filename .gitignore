@@ -1,3 +1,6 @@
 .env
 .env.spark
 *.env
+notebooks/
+__pycache__/
+*.pyc

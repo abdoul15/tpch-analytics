@@ -21,11 +21,14 @@ done
 
 echo "Chargement des données TPC-H dans PostgreSQL..."
 psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} <<-EOSQL
+    TRUNCATE TABLE lineitem, orders, customer, partsupp, supplier, part, nation, region CASCADE;
+    
     \copy nation FROM '$TEMP_DIR/nation.tbl' DELIMITER '|' NULL AS '';
     \copy region FROM '$TEMP_DIR/region.tbl' DELIMITER '|' NULL AS '';
     \copy part FROM '$TEMP_DIR/part.tbl' DELIMITER '|' NULL AS '';
     \copy supplier FROM '$TEMP_DIR/supplier.tbl' DELIMITER '|' NULL AS '';
     \copy partsupp FROM '$TEMP_DIR/partsupp.tbl' DELIMITER '|' NULL AS '';
+    
     \copy customer FROM '$TEMP_DIR/customer.tbl' DELIMITER '|' NULL AS '';
     \copy orders FROM '$TEMP_DIR/orders.tbl' DELIMITER '|' NULL AS '';
     \copy lineitem FROM '$TEMP_DIR/lineitem.tbl' DELIMITER '|' NULL AS '';
