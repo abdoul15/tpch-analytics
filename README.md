@@ -1,3 +1,4 @@
+
 # TPC-H Analytics Pipeline
 
 ## Introduction
@@ -193,4 +194,5 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 - Ajout de métriques supplémentaires selon les besoins des départements
 - Intégration avec d'autres outils de visualisation (Tableau, Power BI)
 - Mise en place d'un orchestrateur (Airflow) pour automatiser les exécutions
+
 
