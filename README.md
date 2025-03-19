@@ -195,22 +195,6 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 
 4. Vous pouvez maintenant créer des visualisations et des dashboards à partir de ces tables
 
-### **3. Autres Commandes Utiles**
-
-```bash
-# Démarrer un notebook Jupyter
-make notebook
-
-# Exécuter les tests
-make test
-
-# Vérifier le code avec Ruff
-make check
-
-# Formater le code avec Ruff
-make format
-```
-
 ---
 
 ## **Vues Disponibles par Département**
