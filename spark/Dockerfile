@@ -31,7 +31,7 @@ RUN git clone https://github.com/electrum/tpch-dbgen.git . && \
     make
 
 RUN mkdir -p /opt/tpch-data
-RUN ./dbgen -s 0.001 && \
+RUN ./dbgen -s 0.01 && \
     mv *.tbl /opt/tpch-data/
     
 # Créer les dossiers nécessaires

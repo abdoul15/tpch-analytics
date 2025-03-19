@@ -3,16 +3,21 @@ from typing import Dict, List, Optional, Type
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, lit, datediff, round, 
-    sum, when, current_timestamp,broadcast
+    col,
+    lit,
+    datediff,
+    round,
+    sum,
+    when,
+    current_timestamp,
+    broadcast,
 )
 
 from tpch_etl_pipeline.etl.bronze.orders import OrdersBronzeETL
 from tpch_etl_pipeline.etl.bronze.lineitem import LineItemBronzeETL
-from tpch_etl_pipeline.utils.etl_base import ETLDataSet,TableETL
+from tpch_etl_pipeline.utils.etl_base import ETLDataSet, TableETL
 
 import logging
-
 
 
 class FctOrdersSilverETL(TableETL):
@@ -21,14 +26,14 @@ class FctOrdersSilverETL(TableETL):
         spark: SparkSession,
         upstream_table_names: Optional[List[Type[TableETL]]] = [
             OrdersBronzeETL,
-            LineItemBronzeETL
+            LineItemBronzeETL,
         ],
-        name: str = "fct_orders",
-        primary_keys: List[str] = ["order_key", "line_number"],
-        storage_path: str = "s3a://spark-bucket/delta/silver/fct_orders",
-        data_format: str = "delta",
-        database: str = "tpchdb",
-        partition_keys: List[str] = ["etl_inserted"],
+        name: str = 'fct_orders',
+        primary_keys: List[str] = ['order_key', 'line_number'],
+        storage_path: str = 's3a://spark-bucket/delta/silver/fct_orders',
+        data_format: str = 'delta',
+        database: str = 'tpchdb',
+        partition_keys: List[str] = ['etl_inserted'],
         run_upstream: bool = True,
         load_data: bool = True,
     ) -> None:
@@ -59,9 +64,7 @@ class FctOrdersSilverETL(TableETL):
 
         return upstream_etl_datasets
 
-    def transform_upstream(
-        self, upstream_datasets: List[ETLDataSet]
-    ) -> ETLDataSet:
+    def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
         # Mettre en cache les DataFrames pour éviter les recalculs
         orders_data = upstream_datasets[0].curr_data.cache()
         lineitem_data = upstream_datasets[1].curr_data.cache()
@@ -70,82 +73,73 @@ class FctOrdersSilverETL(TableETL):
         # Enrichir les lignes de commande avec les informations de commande
         # Utiliser broadcast pour orders_data car c'est généralement plus petit que lineitem_data
         transformed_data = (
-            lineitem_data
-            .join(
+            lineitem_data.join(
                 broadcast(orders_data),
-                lineitem_data["l_orderkey"] == orders_data["o_orderkey"],
-                "inner"
+                lineitem_data['l_orderkey'] == orders_data['o_orderkey'],
+                'inner',
             )
             .select(
                 # Clés de dimensions
-                col("o_orderkey").alias("order_key"),
-                col("l_linenumber").alias("line_number"),
-                col("o_custkey").alias("customer_key"),
-                col("l_partkey").alias("part_key"),
-                col("l_suppkey").alias("supplier_key"),
-                
+                col('o_orderkey').alias('order_key'),
+                col('l_linenumber').alias('line_number'),
+                col('o_custkey').alias('customer_key'),
+                col('l_partkey').alias('part_key'),
+                col('l_suppkey').alias('supplier_key'),
                 # Dates
-                col("o_orderdate").alias("order_date"),
-                col("l_shipdate").alias("ship_date"),
-                col("l_commitdate").alias("commit_date"),
-                col("l_receiptdate").alias("receipt_date"),
-                
+                col('o_orderdate').alias('order_date'),
+                col('l_shipdate').alias('ship_date'),
+                col('l_commitdate').alias('commit_date'),
+                col('l_receiptdate').alias('receipt_date'),
                 # Métriques de commande
-                col("o_totalprice").alias("order_total_amount"),
-                col("o_orderpriority").alias("order_priority"),
-                col("o_orderstatus").alias("order_status"),
-                
+                col('o_totalprice').alias('order_total_amount'),
+                col('o_orderpriority').alias('order_priority'),
+                col('o_orderstatus').alias('order_status'),
                 # Métriques de ligne
-                col("l_quantity").alias("quantity"),
-                col("l_extendedprice").alias("extended_price"),
-                col("l_discount").alias("discount_percentage"),
-                col("l_tax").alias("tax_percentage"),
-                
+                col('l_quantity').alias('quantity'),
+                col('l_extendedprice').alias('extended_price'),
+                col('l_discount').alias('discount_percentage'),
+                col('l_tax').alias('tax_percentage'),
                 # Métriques de livraison
-                col("l_shipmode").alias("ship_mode"),
-                col("l_returnflag").alias("return_flag"),
-                col("l_linestatus").alias("line_status")
+                col('l_shipmode').alias('ship_mode'),
+                col('l_returnflag').alias('return_flag'),
+                col('l_linestatus').alias('line_status'),
             )
             # Calcul des métriques dérivées
             .withColumn(
-                "net_amount",
+                'net_amount',
                 round(
-                    col("extended_price") * (1 - col("discount_percentage")) * 
-                    (1 + col("tax_percentage")), 
-                    2
-                )
+                    col('extended_price')
+                    * (1 - col('discount_percentage'))
+                    * (1 + col('tax_percentage')),
+                    2,
+                ),
             )
             .withColumn(
-                "discount_amount",
-                round(col("extended_price") * col("discount_percentage"), 2)
+                'discount_amount',
+                round(col('extended_price') * col('discount_percentage'), 2),
             )
             .withColumn(
-                "tax_amount",
+                'tax_amount',
                 round(
-                    col("extended_price") * 
-                    (1 - col("discount_percentage")) * 
-                    col("tax_percentage"), 
-                    2
-                )
+                    col('extended_price')
+                    * (1 - col('discount_percentage'))
+                    * col('tax_percentage'),
+                    2,
+                ),
             )
             # Calcul des délais
             .withColumn(
-                "shipping_delay_days",
-                datediff(col("ship_date"), col("order_date"))
+                'shipping_delay_days', datediff(col('ship_date'), col('order_date'))
             )
             .withColumn(
-                "delivery_delay_days",
-                datediff(col("receipt_date"), col("ship_date"))
+                'delivery_delay_days', datediff(col('receipt_date'), col('ship_date'))
             )
             # Indicateurs de performance
             .withColumn(
-                "is_late_delivery",
-                when(
-                    col("receipt_date") > col("commit_date"),
-                    True
-                ).otherwise(False)
+                'is_late_delivery',
+                when(col('receipt_date') > col('commit_date'), True).otherwise(False),
             )
-            .withColumn("etl_inserted", lit(current_timestamp))
+            .withColumn('etl_inserted', lit(current_timestamp))
         )
 
         # Create a new ETLDataSet instance with the transformed data
@@ -162,51 +156,42 @@ class FctOrdersSilverETL(TableETL):
         self.curr_data = etl_dataset.curr_data
         return etl_dataset
 
-    def read(
-        self, partition_values: Optional[Dict[str, str]] = None
-    ) -> ETLDataSet:
+    def read(self, partition_values: Optional[Dict[str, str]] = None) -> ETLDataSet:
         # Select the desired columns
-
-        print(f"Lecture des données dans fct_orders (Silver) démarré")
 
         selected_columns = [
             # Clés
-            col("order_key"),
-            col("line_number"),
-            col("customer_key"),
-            col("part_key"),
-            col("supplier_key"),
-            
+            col('order_key'),
+            col('line_number'),
+            col('customer_key'),
+            col('part_key'),
+            col('supplier_key'),
             # Dates
-            col("order_date"),
-            col("ship_date"),
-            col("commit_date"),
-            col("receipt_date"),
-            
+            col('order_date'),
+            col('ship_date'),
+            col('commit_date'),
+            col('receipt_date'),
             # Métriques de commande
-            col("order_total_amount"),
-            col("order_priority"),
-            col("order_status"),
-            
+            col('order_total_amount'),
+            col('order_priority'),
+            col('order_status'),
             # Métriques de ligne
-            col("quantity"),
-            col("extended_price"),
-            col("discount_percentage"),
-            col("tax_percentage"),
-            col("net_amount"),
-            col("discount_amount"),
-            col("tax_amount"),
-            
+            col('quantity'),
+            col('extended_price'),
+            col('discount_percentage'),
+            col('tax_percentage'),
+            col('net_amount'),
+            col('discount_amount'),
+            col('tax_amount'),
             # Métriques de livraison
-            col("ship_mode"),
-            col("return_flag"),
-            col("line_status"),
-            col("shipping_delay_days"),
-            col("delivery_delay_days"),
-            col("is_late_delivery"),
-            
+            col('ship_mode'),
+            col('return_flag'),
+            col('line_status'),
+            col('shipping_delay_days'),
+            col('delivery_delay_days'),
+            col('is_late_delivery'),
             # Métadonnées
-            col("etl_inserted")
+            col('etl_inserted'),
         ]
 
         if not self.load_data:
@@ -221,55 +206,20 @@ class FctOrdersSilverETL(TableETL):
             )
 
         elif partition_values:
-            partition_filter = " AND ".join(
+            partition_filter = ' AND '.join(
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
-            try:
-                from delta.tables import DeltaTable
-                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
-                
-                # Obtenir la dernière version de la table sans collect()
-                # Utiliser une vue temporaire pour éviter collect()
-                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
-                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
-                
-                # Lire directement la dernière version sans filtrer
-                fct_orders_data = (
-                    self.spark.read.format(self.data_format)
-                    .option("versionAsOf", latest_version)
-                    .load(self.storage_path)
-                )
-                
-                # Sélectionner les colonnes
-                fct_orders_data = fct_orders_data.select(selected_columns)
-                
-                # Créer l'ETLDataSet et retourner
-                etl_dataset = ETLDataSet(
-                    name=self.name,
-                    curr_data=fct_orders_data,
-                    primary_keys=self.primary_keys,
-                    storage_path=self.storage_path,
-                    data_format=self.data_format,
-                    database=self.database,
-                    partition_keys=self.partition_keys,
-                )
-                
-                print(f"Lecture des données dans fct_orders (Silver) ok")
-                return etl_dataset
-                
-            except Exception as e:
-                # Fallback à la méthode originale si l'approche Delta échoue
-                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
-                latest_partition = (
-                    self.spark.read.format(self.data_format)
-                    .load(self.storage_path)
-                    .selectExpr("max(etl_inserted)")
-                    .collect()[0][0]
-                )
-                partition_filter = f"etl_inserted = '{latest_partition}'"
-        
+            # Trouver la dernière partition etl_inserted directement
+            latest_partition = (
+                self.spark.read.format(self.data_format)
+                .load(self.storage_path)
+                .selectExpr('max(etl_inserted) as max_etl_inserted')
+                .first()[0]
+            )
+
+            partition_filter = f"etl_inserted = '{latest_partition}'"
+
         # Méthode standard si on a un filtre de partition
         fct_orders_data = (
             self.spark.read.format(self.data_format)
@@ -289,7 +239,5 @@ class FctOrdersSilverETL(TableETL):
             database=self.database,
             partition_keys=self.partition_keys,
         )
-
-        print(f"Lecture des données dans fct_orders (Silver) ok")
 
         return etl_dataset

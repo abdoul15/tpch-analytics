@@ -3,8 +3,15 @@ from typing import Dict, List, Optional, Type
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, lit, sum, avg, count, countDistinct,
-    round, when, date_format
+    col,
+    lit,
+    sum,
+    avg,
+    count,
+    countDistinct,
+    round,
+    when,
+    date_format,
 )
 
 
@@ -19,12 +26,12 @@ class DailySalesMetricsGoldETL(TableETL):
         upstream_table_names: Optional[List[Type[TableETL]]] = [
             WideOrderDetailsGoldETL
         ],
-        name: str = "daily_sales_metrics",
-        primary_keys: List[str] = ["date", "market_segment", "region"],
-        storage_path: str = "s3a://spark-bucket/delta/gold/daily_sales_metrics",
-        data_format: str = "delta",
-        database: str = "tpchdb",
-        partition_keys: List[str] = ["etl_inserted"],
+        name: str = 'daily_sales_metrics',
+        primary_keys: List[str] = ['date', 'market_segment', 'region'],
+        storage_path: str = 's3a://spark-bucket/delta/gold/daily_sales_metrics',
+        data_format: str = 'delta',
+        database: str = 'tpchdb',
+        partition_keys: List[str] = ['etl_inserted'],
         run_upstream: bool = True,
         load_data: bool = True,
     ) -> None:
@@ -40,7 +47,7 @@ class DailySalesMetricsGoldETL(TableETL):
             run_upstream,
             load_data,
         )
-    
+
     def extract_upstream(self) -> List[ETLDataSet]:
         upstream_etl_datasets = []
         for TableETLClass in self.upstream_table_names:
@@ -54,62 +61,55 @@ class DailySalesMetricsGoldETL(TableETL):
             upstream_etl_datasets.append(t1.read())
 
         return upstream_etl_datasets
-    
-    
 
-    def transform_upstream(
-        self, upstream_datasets: List[ETLDataSet]
-    ) -> ETLDataSet:
+    def transform_upstream(self, upstream_datasets: List[ETLDataSet]) -> ETLDataSet:
         # Mettre en cache le DataFrame pour éviter les recalculs
         wide_orders = upstream_datasets[0].curr_data.cache()
         current_timestamp = datetime.now()
 
         # Créer une colonne date formatée pour éviter de la recalculer plusieurs fois
         wide_orders_with_date = wide_orders.withColumn(
-            "order_date_formatted", 
-            date_format("order_date", "yyyy-MM-dd")
+            'order_date_formatted', date_format('order_date', 'yyyy-MM-dd')
         )
 
         # Agrégation des métriques quotidiennes
         daily_metrics = (
-            wide_orders_with_date
-            .groupBy(
-                "order_date_formatted",
-                "market_segment",
-                "customer_region"
+            wide_orders_with_date.groupBy(
+                'order_date_formatted', 'market_segment', 'customer_region'
             )
             .agg(
                 # Métriques de vente
-                round(sum("net_amount"), 2).alias("total_sales"),
-                round(sum("discount_amount"), 2).alias("total_discounts"),
-                round(avg("net_amount"), 2).alias("average_order_value"),
-                countDistinct("order_key").alias("number_of_orders"),
-                count("line_number").alias("number_of_items"),
-                
+                round(sum('net_amount'), 2).alias('total_sales'),
+                round(sum('discount_amount'), 2).alias('total_discounts'),
+                round(avg('net_amount'), 2).alias('average_order_value'),
+                countDistinct('order_key').alias('number_of_orders'),
+                count('line_number').alias('number_of_items'),
                 # Métriques de livraison
-                round(avg("shipping_delay_days"), 1).alias("avg_shipping_delay"),
-                round(avg("delivery_delay_days"), 1).alias("avg_delivery_delay"),
+                round(avg('shipping_delay_days'), 1).alias('avg_shipping_delay'),
+                round(avg('delivery_delay_days'), 1).alias('avg_delivery_delay'),
                 round(
-                    sum(when(col("is_late_delivery"), 1).otherwise(0)) /
-                    count("*") * 100,
-                    2
-                ).alias("late_delivery_percentage"),
-                
+                    sum(when(col('is_late_delivery'), 1).otherwise(0))
+                    / count('*')
+                    * 100,
+                    2,
+                ).alias('late_delivery_percentage'),
                 # Métriques par région
-                countDistinct("customer_name").alias("unique_customers"),
-                countDistinct("part_name").alias("unique_products"),
-                
+                countDistinct('customer_name').alias('unique_customers'),
+                countDistinct('part_name').alias('unique_products'),
                 # Métriques de performance
                 round(
-                    sum(when(col("order_status") == "F", col("net_amount")).otherwise(0)) /
-                    sum("net_amount") * 100,
-                    2
-                ).alias("fulfillment_rate")
+                    sum(
+                        when(col('order_status') == 'F', col('net_amount')).otherwise(0)
+                    )
+                    / sum('net_amount')
+                    * 100,
+                    2,
+                ).alias('fulfillment_rate'),
             )
-            .withColumnRenamed("order_date_formatted", "date")
-            .withColumn("etl_inserted", lit(current_timestamp))
+            .withColumnRenamed('order_date_formatted', 'date')
+            .withColumn('etl_inserted', lit(current_timestamp))
         )
-        
+
         # Libérer la mémoire après utilisation
         wide_orders.unpersist()
 
@@ -126,34 +126,28 @@ class DailySalesMetricsGoldETL(TableETL):
         self.curr_data = etl_dataset.curr_data
         return etl_dataset
 
-    def read(
-        self, partition_values: Optional[Dict[str, str]] = None
-    ) -> ETLDataSet:
+    def read(self, partition_values: Optional[Dict[str, str]] = None) -> ETLDataSet:
         selected_columns = [
             # Dimensions
-            col("date"),
-            col("market_segment"),
-            col("customer_region").alias("region"),
-            
+            col('date'),
+            col('market_segment'),
+            col('customer_region').alias('region'),
             # Métriques de vente
-            col("total_sales"),
-            col("total_discounts"),
-            col("average_order_value"),
-            col("number_of_orders"),
-            col("number_of_items"),
-            
+            col('total_sales'),
+            col('total_discounts'),
+            col('average_order_value'),
+            col('number_of_orders'),
+            col('number_of_items'),
             # Métriques de livraison
-            col("avg_shipping_delay"),
-            col("avg_delivery_delay"),
-            col("late_delivery_percentage"),
-            
+            col('avg_shipping_delay'),
+            col('avg_delivery_delay'),
+            col('late_delivery_percentage'),
             # Métriques business
-            col("unique_customers"),
-            col("unique_products"),
-            col("fulfillment_rate"),
-            
+            col('unique_customers'),
+            col('unique_products'),
+            col('fulfillment_rate'),
             # Métadonnées
-            col("etl_inserted")
+            col('etl_inserted'),
         ]
 
         if not self.load_data:
@@ -168,52 +162,20 @@ class DailySalesMetricsGoldETL(TableETL):
             )
 
         elif partition_values:
-            partition_filter = " AND ".join(
+            partition_filter = ' AND '.join(
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
-            try:
-                from delta.tables import DeltaTable
-                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
-                
-                # Obtenir la dernière version de la table sans collect()
-                # Utiliser une vue temporaire pour éviter collect()
-                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
-                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
-                
-                # Lire directement la dernière version sans filtrer
-                daily_metrics = (
-                    self.spark.read.format(self.data_format)
-                    .option("versionAsOf", latest_version)
-                    .load(self.storage_path)
-                    .select(selected_columns)
-                )
-                
-                # Créer l'ETLDataSet et retourner
-                etl_dataset = ETLDataSet(
-                    name=self.name,
-                    curr_data=daily_metrics,
-                    primary_keys=self.primary_keys,
-                    storage_path=self.storage_path,
-                    data_format=self.data_format,
-                    database=self.database,
-                    partition_keys=self.partition_keys,
-                )
-                
-                return etl_dataset
-                
-            except Exception as e:
-                # Fallback à la méthode originale si l'approche Delta échoue
-                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
-                latest_partition = (
-                    self.spark.read.format(self.data_format)
-                    .load(self.storage_path)
-                    .selectExpr("max(etl_inserted)")
-                    .collect()[0][0]
-                )
-                partition_filter = f"etl_inserted = '{latest_partition}'"
-        
+            # Trouver la dernière partition etl_inserted directement
+            latest_partition = (
+                self.spark.read.format(self.data_format)
+                .load(self.storage_path)
+                .selectExpr('max(etl_inserted) as max_etl_inserted')
+                .first()[0]
+            )
+
+            partition_filter = f"etl_inserted = '{latest_partition}'"
+
         # Méthode standard si on a un filtre de partition
         daily_metrics = (
             self.spark.read.format(self.data_format)

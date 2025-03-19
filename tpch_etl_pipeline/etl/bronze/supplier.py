@@ -8,7 +8,6 @@ from tpch_etl_pipeline.utils.database import get_table_from_db
 from tpch_etl_pipeline.config.tables_config import TABLE_PARTITION_CONFIG
 
 
-
 class SupplierBronzeETL(TableETL):
     def __init__(
         self,
@@ -40,7 +39,9 @@ class SupplierBronzeETL(TableETL):
         # Extract supplier data from TPCH source
         table_name = 'public.supplier'
         config = TABLE_PARTITION_CONFIG.get(table_name)
-        supplier_data = get_table_from_db(table_name, self.spark,config['partition_column'])
+        supplier_data = get_table_from_db(
+            table_name, self.spark, config['partition_column']
+        )
 
         # Create an ETLDataSet instance
         etl_dataset = ETLDataSet(
@@ -79,8 +80,6 @@ class SupplierBronzeETL(TableETL):
         return etl_dataset
 
     def read(self, partition_values: Optional[Dict[str, str]] = None) -> ETLDataSet:
-        print(f"Lecture des données dans Supplier (Bronze) démarré")
-        
         if not self.load_data:
             return ETLDataSet(
                 name=self.name,
@@ -97,61 +96,15 @@ class SupplierBronzeETL(TableETL):
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
-            try:
-                from delta.tables import DeltaTable
-                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
-                
-                # Obtenir la dernière version de la table sans collect()
-                # Utiliser une vue temporaire pour éviter collect()
-                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
-                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
-                
-                # Lire directement la dernière version sans filtrer
-                supplier_data = (
-                    self.spark.read.format(self.data_format)
-                    .option("versionAsOf", latest_version)
-                    .load(self.storage_path)
-                )
-                
-                # Explicitly select columns based on TPCH schema
-                supplier_data = supplier_data.select(
-                    col('s_suppkey'),  # Supplier key (Primary Key)
-                    col('s_name'),  # Supplier name
-                    col('s_address'),  # Address
-                    col('s_nationkey'),  # Nation key
-                    col('s_phone'),  # Phone number
-                    col('s_acctbal'),  # Account balance
-                    col('s_comment'),  # Comment
-                    col('etl_inserted'),
-                )
-                
-                # Créer l'ETLDataSet et retourner
-                etl_dataset = ETLDataSet(
-                    name=self.name,
-                    curr_data=supplier_data,
-                    primary_keys=self.primary_keys,
-                    storage_path=self.storage_path,
-                    data_format=self.data_format,
-                    database=self.database,
-                    partition_keys=self.partition_keys,
-                )
-                
-                print(f"Lecture des données dans Supplier (Bronze) Ok")
-                return etl_dataset
-                
-            except Exception as e:
-                # Fallback à la méthode originale si l'approche Delta échoue
-                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
-                
-                # Utiliser une vue temporaire pour éviter collect()
-                self.spark.read.format(self.data_format) \
-                    .load(self.storage_path) \
-                    .selectExpr('max(etl_inserted) as max_etl_inserted') \
-                    .createOrReplaceTempView("latest_partition")
-                
-                latest_partition = self.spark.sql("SELECT max_etl_inserted FROM latest_partition").first()[0]
-                partition_filter = f"etl_inserted = '{latest_partition}'"
+            # Trouver la dernière partition etl_inserted directement
+            latest_partition = (
+                self.spark.read.format(self.data_format)
+                .load(self.storage_path)
+                .selectExpr('max(etl_inserted) as max_etl_inserted')
+                .first()[0]
+            )
+
+            partition_filter = f"etl_inserted = '{latest_partition}'"
 
         # Read the supplier data from the Delta Lake table
         supplier_data = (

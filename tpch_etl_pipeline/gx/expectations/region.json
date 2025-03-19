@@ -1,0 +1,38 @@
+{
+  "data_asset_type": null,
+  "expectation_suite_name": "region",
+  "expectations": [
+    {
+      "expectation_type": "expect_table_columns_to_match_ordered_list",
+      "kwargs": {
+        "column_list": [
+          "r_regionkey",
+          "r_name",
+          "r_comment",
+          "etl_inserted"
+        ]
+      },
+      "meta": {
+        "notes": {
+          "content": "Vérifie que toutes les colonnes attendues sont présentes dans le bon ordre",
+          "format": "markdown"
+        }
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "r_regionkey"
+      },
+      "meta": {
+        "notes": {
+          "content": "La clé de région ne doit pas contenir de valeurs nulles",
+          "format": "markdown"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "great_expectations_version": "0.18.21"
+  }
+}

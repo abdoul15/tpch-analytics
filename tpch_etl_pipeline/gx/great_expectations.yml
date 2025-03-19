@@ -100,7 +100,7 @@ fluent_datasources:
   temp_spark_datasource:
     type: spark
     assets:
-      customer:
+      region:
         type: dataframe
         batch_metadata: {}
 notebooks:

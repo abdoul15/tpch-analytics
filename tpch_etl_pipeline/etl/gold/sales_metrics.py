@@ -1,10 +1,19 @@
 from datetime import datetime
-from typing import Dict, List, Optional, Type
+from typing import Optional
 
 from pyspark.sql import SparkSession, Window
 from pyspark.sql.functions import (
-    col, lit, sum, avg, round, when, date_format, 
-    count, countDistinct, dense_rank, desc, row_number
+    col,
+    lit,
+    sum,
+    avg,
+    round,
+    when,
+    date_format,
+    count,
+    countDistinct,
+    desc,
+    row_number,
 )
 
 from tpch_etl_pipeline.etl.gold.wide_order_details import WideOrderDetailsGoldETL
@@ -14,25 +23,25 @@ from tpch_etl_pipeline.utils.etl_base import ETLDataSet, TableETL
 class SalesMetricsGoldETL(TableETL):
     """
     ETL pour les métriques commerciales destinées au département Commercial & Ventes.
-    
+
     Cette classe calcule des métriques commerciales comme:
     - Tendances d'achat des clients
     - Popularité des produits
     - Impact des remises sur les ventes
     """
-    
+
     def __init__(
         self,
         spark: SparkSession,
-        upstream_table_names: Optional[List[Type[TableETL]]] = [
+        upstream_table_names: Optional[list[type[TableETL]]] = [
             WideOrderDetailsGoldETL
         ],
-        name: str = "sales_metrics",
-        primary_keys: List[str] = ["date", "market_segment", "customer_region"],
-        storage_path: str = "s3a://spark-bucket/delta/gold/sales_metrics",
-        data_format: str = "delta",
-        database: str = "tpchdb",
-        partition_keys: List[str] = ["etl_inserted"],
+        name: str = 'sales_metrics',
+        primary_keys: list[str] = ['date', 'market_segment', 'customer_region'],
+        storage_path: str = 's3a://spark-bucket/delta/gold/sales_metrics',
+        data_format: str = 'delta',
+        database: str = 'tpchdb',
+        partition_keys: list[str] = ['etl_inserted'],
         run_upstream: bool = True,
         load_data: bool = True,
     ) -> None:
@@ -48,8 +57,8 @@ class SalesMetricsGoldETL(TableETL):
             run_upstream,
             load_data,
         )
-    
-    def extract_upstream(self) -> List[ETLDataSet]:
+
+    def extract_upstream(self) -> list[ETLDataSet]:
         upstream_etl_datasets = []
         for TableETLClass in self.upstream_table_names:
             t1 = TableETLClass(
@@ -62,95 +71,93 @@ class SalesMetricsGoldETL(TableETL):
             upstream_etl_datasets.append(t1.read())
 
         return upstream_etl_datasets
-    
-    def transform_upstream(
-        self, upstream_datasets: List[ETLDataSet]
-    ) -> ETLDataSet:
+
+    def transform_upstream(self, upstream_datasets: list[ETLDataSet]) -> ETLDataSet:
         wide_orders = upstream_datasets[0].curr_data
         current_timestamp = datetime.now()
 
         # Préparation des données pour l'analyse des top produits
-        window_by_product = Window.partitionBy("date_formatted", "market_segment", "customer_region").orderBy(desc("product_revenue"))
-        
+        window_by_product = Window.partitionBy(
+            'date_formatted', 'market_segment', 'customer_region'
+        ).orderBy(desc('product_revenue'))
+
         # Calcul des revenus par produit
         product_revenue = (
-            wide_orders
-            .withColumn("date_formatted", date_format("order_date", "yyyy-MM-dd"))
-            .groupBy("date_formatted", "market_segment", "customer_region", "part_name")
-            .agg(
-                round(sum("net_amount"), 2).alias("product_revenue"),
-                count("line_number").alias("product_quantity")
+            wide_orders.withColumn(
+                'date_formatted', date_format('order_date', 'yyyy-MM-dd')
             )
-            .withColumn("product_rank", row_number().over(window_by_product))
+            .groupBy('date_formatted', 'market_segment', 'customer_region', 'part_name')
+            .agg(
+                round(sum('net_amount'), 2).alias('product_revenue'),
+                count('line_number').alias('product_quantity'),
+            )
+            .withColumn('product_rank', row_number().over(window_by_product))
         )
-        
+
         # Filtrer pour ne garder que les 5 meilleurs produits par segment/région/jour
-        top_products = product_revenue.filter(col("product_rank") <= 5)
-        
+        top_products = product_revenue.filter(col('product_rank') <= 5)
+
         # Agrégation des métriques commerciales quotidiennes
         sales_metrics = (
-            wide_orders
-            .groupBy(
-                date_format("order_date", "yyyy-MM-dd").alias("date"),
-                "market_segment",
-                "customer_region"
+            wide_orders.groupBy(
+                date_format('order_date', 'yyyy-MM-dd').alias('date'),
+                'market_segment',
+                'customer_region',
             )
             .agg(
                 # Métriques de vente
-                round(sum("net_amount"), 2).alias("total_revenue"),
-                round(sum("discount_amount"), 2).alias("total_discounts"),
-                round(
-                    sum("discount_amount") / sum("net_amount") * 100,
-                    2
-                ).alias("discount_percentage"),
-                
+                round(sum('net_amount'), 2).alias('total_revenue'),
+                round(sum('discount_amount'), 2).alias('total_discounts'),
+                round(sum('discount_amount') / sum('net_amount') * 100, 2).alias(
+                    'discount_percentage'
+                ),
                 # Métriques de commande
-                count("order_key").alias("order_count"),
-                round(avg("net_amount"), 2).alias("average_order_value"),
-                
+                count('order_key').alias('order_count'),
+                round(avg('net_amount'), 2).alias('average_order_value'),
                 # Métriques client
-                countDistinct("customer_name").alias("unique_customers"),
-                round(
-                    sum("net_amount") / countDistinct("customer_name"),
-                    2
-                ).alias("revenue_per_customer"),
-                
+                countDistinct('customer_name').alias('unique_customers'),
+                round(sum('net_amount') / countDistinct('customer_name'), 2).alias(
+                    'revenue_per_customer'
+                ),
                 # Métriques produit
-                countDistinct("part_name").alias("unique_products_sold"),
-                count("line_number").alias("total_items_sold"),
-                round(
-                    count("line_number") / count("order_key"),
-                    2
-                ).alias("items_per_order"),
-                
+                countDistinct('part_name').alias('unique_products_sold'),
+                count('line_number').alias('total_items_sold'),
+                round(count('line_number') / count('order_key'), 2).alias(
+                    'items_per_order'
+                ),
                 # Métriques de performance
                 round(
-                    sum(when(col("order_priority") == "1-URGENT" 
-                             | col("order_priority") == "2-HIGH", 
-                             col("net_amount")).otherwise(0)) / 
-                    sum("net_amount") * 100,
-                    2
-                ).alias("high_priority_order_percentage")
+                    sum(
+                        when(
+                            col('order_priority')
+                            == '1-URGENT' | col('order_priority')
+                            == '2-HIGH',
+                            col('net_amount'),
+                        ).otherwise(0)
+                    )
+                    / sum('net_amount')
+                    * 100,
+                    2,
+                ).alias('high_priority_order_percentage'),
             )
-            .withColumn("etl_inserted", lit(current_timestamp))
+            .withColumn('etl_inserted', lit(current_timestamp))
         )
-        
+
         # Joindre les informations sur les top produits
         # Cette partie serait idéalement implémentée avec une structure de données plus complexe
         # Pour simplifier, nous ajoutons juste un indicateur du nombre de top produits
         sales_metrics_with_top = (
-            sales_metrics
-            .join(
-                top_products
-                .groupBy("date_formatted", "market_segment", "customer_region")
-                .agg(count("part_name").alias("top_products_count")),
-                (sales_metrics["date"] == top_products["date_formatted"]) &
-                (sales_metrics["market_segment"] == top_products["market_segment"]) &
-                (sales_metrics["customer_region"] == top_products["customer_region"]),
-                "left"
+            sales_metrics.join(
+                top_products.groupBy(
+                    'date_formatted', 'market_segment', 'customer_region'
+                ).agg(count('part_name').alias('top_products_count')),
+                (sales_metrics['date'] == top_products['date_formatted'])
+                & (sales_metrics['market_segment'] == top_products['market_segment'])
+                & (sales_metrics['customer_region'] == top_products['customer_region']),
+                'left',
             )
-            .drop("date_formatted")
-            .na.fill({"top_products_count": 0})
+            .drop('date_formatted')
+            .na.fill({'top_products_count': 0})
         )
 
         etl_dataset = ETLDataSet(
@@ -166,39 +173,31 @@ class SalesMetricsGoldETL(TableETL):
         self.curr_data = etl_dataset.curr_data
         return etl_dataset
 
-    def read(
-        self, partition_values: Optional[Dict[str, str]] = None
-    ) -> ETLDataSet:
+    def read(self, partition_values: Optional[dict[str, str]] = None) -> ETLDataSet:
         selected_columns = [
             # Dimensions
-            col("date"),
-            col("market_segment"),
-            col("customer_region"),
-            
+            col('date'),
+            col('market_segment'),
+            col('customer_region'),
             # Métriques de vente
-            col("total_revenue"),
-            col("total_discounts"),
-            col("discount_percentage"),
-            
+            col('total_revenue'),
+            col('total_discounts'),
+            col('discount_percentage'),
             # Métriques de commande
-            col("order_count"),
-            col("average_order_value"),
-            
+            col('order_count'),
+            col('average_order_value'),
             # Métriques client
-            col("unique_customers"),
-            col("revenue_per_customer"),
-            
+            col('unique_customers'),
+            col('revenue_per_customer'),
             # Métriques produit
-            col("unique_products_sold"),
-            col("total_items_sold"),
-            col("items_per_order"),
-            
+            col('unique_products_sold'),
+            col('total_items_sold'),
+            col('items_per_order'),
             # Métriques de performance
-            col("high_priority_order_percentage"),
-            col("top_products_count"),
-            
+            col('high_priority_order_percentage'),
+            col('top_products_count'),
             # Métadonnées
-            col("etl_inserted")
+            col('etl_inserted'),
         ]
 
         if not self.load_data:
@@ -213,53 +212,19 @@ class SalesMetricsGoldETL(TableETL):
             )
 
         elif partition_values:
-            partition_filter = " AND ".join(
+            partition_filter = ' AND '.join(
                 [f"{k} = '{v}'" for k, v in partition_values.items()]
             )
         else:
-            # Optimisation: Utiliser l'API DeltaTable pour obtenir la dernière version
-            try:
-                from delta.tables import DeltaTable
-                delta_table = DeltaTable.forPath(self.spark, self.storage_path)
-                
-                # Obtenir la dernière version de la table sans collect()
-                # Utiliser une vue temporaire pour éviter collect()
-                delta_table.history(1).select("version").createOrReplaceTempView("latest_version")
-                latest_version = self.spark.sql("SELECT version FROM latest_version").first()[0]
-                
-                # Lire directement la dernière version sans filtrer
-                sales_metrics = (
-                    self.spark.read.format(self.data_format)
-                    .option("versionAsOf", latest_version)
-                    .load(self.storage_path)
-                    .select(selected_columns)
-                )
-                
-                # Créer l'ETLDataSet et retourner
-                etl_dataset = ETLDataSet(
-                    name=self.name,
-                    curr_data=sales_metrics,
-                    primary_keys=self.primary_keys,
-                    storage_path=self.storage_path,
-                    data_format=self.data_format,
-                    database=self.database,
-                    partition_keys=self.partition_keys,
-                )
-                
-                return etl_dataset
-                
-            except Exception as e:
-                # Fallback à la méthode originale si l'approche Delta échoue
-                print(f"Optimisation de lecture échouée, utilisation de la méthode standard: {str(e)}")
-                
-                # Utiliser une vue temporaire pour éviter collect()
-                self.spark.read.format(self.data_format) \
-                    .load(self.storage_path) \
-                    .selectExpr('max(etl_inserted) as max_etl_inserted') \
-                    .createOrReplaceTempView("latest_partition")
-                
-                latest_partition = self.spark.sql("SELECT max_etl_inserted FROM latest_partition").first()[0]
-                partition_filter = f"etl_inserted = '{latest_partition}'"
+            # Trouver la dernière partition etl_inserted directement
+            latest_partition = (
+                self.spark.read.format(self.data_format)
+                .load(self.storage_path)
+                .selectExpr('max(etl_inserted) as max_etl_inserted')
+                .first()[0]
+            )
+
+            partition_filter = f"etl_inserted = '{latest_partition}'"
 
         sales_metrics = (
             self.spark.read.format(self.data_format)

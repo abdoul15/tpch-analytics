@@ -18,6 +18,8 @@ rebuild:
 	docker compose build
 	docker compose up -d --scale spark-worker=$(WORKER_COUNT)
 
+
+
 notebook:
 	docker exec spark-master bash -c "/opt/spark/scripts/start-jupyter.sh"
 
@@ -50,21 +52,7 @@ run-finance:
 # Exécuter uniquement les vues pour le département Supply Chain
 run-supply-chain:
 	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py supply_chain
-
-
-
-
-# Démarrer Trino
-run-trino:
-	docker compose up -d trino
-
-# Démarrer Superset
-run-superset:
-	docker compose up -d superset
 	
-# Démarrer Trino et Superset
-run-bi:
-	docker compose up -d trino superset
 
 # Enregistrer les tables Delta dans Trino
 register-trino-tables:

@@ -21,10 +21,10 @@ runtime_configuration: {}
 validations:
   - batch_request:
       datasource_name: temp_spark_datasource
-      data_asset_name: customer
+      data_asset_name: region
       options: {}
       batch_slice:
-    expectation_suite_name: customer
+    expectation_suite_name: region
 profilers: []
 ge_cloud_id:
 expectation_suite_ge_cloud_id:
