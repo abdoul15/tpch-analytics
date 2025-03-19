@@ -39,7 +39,7 @@ spark-sql:
 	docker exec -ti spark-master spark-sql --master spark://spark-master:7077
 
 cr: 
-	@read -p "Entrer le chemin du fichier:" pyspark_path; docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/$$pyspark_path
+	@read -p "Entrer le chemin du fichier :" pyspark_path; docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/$$pyspark_path
 
 # Exécuter le pipeline complet
 run-pipeline:

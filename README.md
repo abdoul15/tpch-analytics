@@ -3,15 +3,16 @@
 ## Introduction
 
 Ce projet vise à construire un **pipeline analytique complet**, basé sur les **données TPC-H** stockées dans une base **PostgreSQL**.  
-L'objectif est de **traiter, transformer et structurer** ces données afin d'extraire des **KPIs métier** exploitables dans un **dashboard** ou une solution de reporting (*Power BI, Tableau, etc.*).
+L'objectif est de **traiter, transformer et structurer** ces données afin d'extraire des **KPIs métier** exploitables dans un **dashboard** ou une solution de reporting (*Power BI, Tableau, Apache Sperset etc.*).
 
 J'ai adopté une approche **modulaire et scalable** avec une architecture multi-couches **Bronze → Silver → Gold → Interface**, et j'ai mis en place un ensemble de **règles de Data Quality** afin de garantir la fiabilité des résultats.
 
 ---
 
-## Besoins Métier par Département
+## Besoins Métier
 
-Avant de construire un pipeline, il faut d'abord identifier les besoins spécifiques du client. J'ai supposé que nous avons identifié cela pour un client avec plusieurs départements, chaque département ayant des besoins distincts pour garantir que les données exposées répondent à leurs attentes.
+Avant de construire un pipeline, il faut d'abord identifier les besoins spécifiques du client. J'ai supposé que nous avons identifié cela pour un client avec un département Finance & Comptabilité, ayant des besoins distincts pour garantir que les données exposées répondent à leurs attentes.
+On peut avoir plusieurs département avec des besoins différents, la logique reste la même.
 
 ### **Département Finance & Comptabilité**
 
@@ -26,21 +27,6 @@ Avant de construire un pipeline, il faut d'abord identifier les besoins spécifi
 - **Créances Clients** (montants dus par les clients)
 - **Marge Estimée** et **Taux de Marge (%)**
 - **Âge Moyen des Commandes Ouvertes** (en jours)
-
-### **Département Supply Chain & Logistique**
-
-**Besoins métier :**
-- Gestion des fournisseurs et des délais de livraison
-- Analyse des niveaux de stock et des tendances de consommation
-- Optimisation des commandes et des routes de livraison
-
-**Métriques clés :**
-- **Délai Moyen d'Expédition** (en jours) et sa variabilité
-- **Taux de Livraisons Tardives (%)**
-- **Taux d'Exécution des Commandes (%)**
-- **Temps de Traitement Moyen** (en jours)
-- **Nombre de Produits Uniques** et **Quantité Commandée**
-- **Performance des Fournisseurs** par pays et région
 
 ---
 
@@ -60,9 +46,8 @@ Avant de construire un pipeline, il faut d'abord identifier les besoins spécifi
 
 ### **3. Calcul des KPIs & Agrégations (Gold Layer)**
 - Construction des tables **prêtes pour l'analyse** (One Big Table).
-- Calcul des **métriques clés** par département :
-  - **Finance** : revenus, taxes, marges, créances
-  - **Supply Chain** : délais de livraison, performance fournisseurs
+- Calcul des **métriques clés** pour le département Finance :
+  - Revenus, taxes, marges, créances
 
 ### **4. Exposition des Données (Interface Layer)**
 - Vues adaptées aux besoins spécifiques de chaque département
@@ -134,10 +119,6 @@ make run-pipeline
 
 # Exécuter uniquement les vues pour le département Finance
 make run-finance
-
-# Exécuter uniquement les vues pour le département Supply Chain
-make run-supply-chain
-
 ```
 
 ## Configuration de Superset avec Trino pour accéder aux tables Delta
@@ -167,8 +148,8 @@ make register-trino-tables
 ```
 
 Cette commande exécute le script `register_trino_tables.sh` qui :
-1. Crée le schéma pour les différents départements finance et supply chain dans Trino s'il n'existe pas
-2. Crée les tables dans Trino qui pointe vers les données Delta
+1. Crée le schéma pour le département finance dans Trino s'il n'existe pas
+2. Crée les tables dans Trino qui pointent vers les données Delta
 
 
 ### Configuration de la connexion dans Superset
@@ -197,21 +178,13 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 
 ---
 
-## **Vues Disponibles par Département**
+## **Vues Disponibles**
 
 ### **Finance & Comptabilité**
 
 | Nom de la Vue | Description | Tables/Vues |
 |---------------|-------------|-------------|
-| **Finance Dashboard** | Tableau de bord financier avec les métriques clés | `tpchdb.finance_dashboard_view` |
-
-### **Supply Chain & Logistique**
-
-| Nom de la Vue | Description | Tables/Vues |
-|---------------|-------------|-------------|
-| **Supply Chain Dashboard** | Tableau de bord logistique avec les métriques clés | `tpchdb.supply_chain_dashboard_view` |
-| **Supplier Performance** | Analyse de la performance des fournisseurs | `tpchdb.supplier_performance_view` |
-| **Inventory Analysis** | Analyse des stocks et de la consommation | `tpchdb.inventory_analysis_view` |
+| **Finance Dashboard** | Tableau de bord financier avec les métriques clés | `finance.finance_dashboard_view` |
 
 ---
 
@@ -221,4 +194,3 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 - Intégration avec d'autres outils de visualisation (Tableau, Power BI)
 - Mise en place d'un orchestrateur (Airflow) pour automatiser les exécutions
 
-En cours de dev

@@ -12,3 +12,5 @@ CALL system.register_table('finance', 'finance_dashboard_view', 's3://spark-buck
 "
 
 echo "Table finance.finance_dashboard_view enregistrée avec succès dans Trino!"
+
+
