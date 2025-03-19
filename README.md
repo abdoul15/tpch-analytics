@@ -172,9 +172,6 @@ Plusieurs options sont disponibles pour exécuter le pipeline :
 ```bash
 # Exécuter uniquement la couche interface (par défaut), ce qui exécute tout le pipeline
 make run-pipeline
-
-# Exécuter et exposer uniquement les métriques pour le département Finance
-make run-finance
 ```
 
 ## Configuration de Superset avec Trino pour accéder aux tables Delta
