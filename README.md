@@ -105,7 +105,7 @@ Cloner le dépôt et démarrer l'environnement Docker :
 # Cloner le dépôt
 git clone https://github.com/abdoul15/tpch-analytics.git
 cd tpch-analytics
-
+```
 
 ### **2. Configuration des Credentials**
 
