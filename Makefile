@@ -48,10 +48,6 @@ run-pipeline:
 # Exécuter uniquement les vues pour le département Finance
 run-finance:
 	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py finance
-
-# Exécuter uniquement les vues pour le département Supply Chain
-run-supply-chain:
-	docker exec -ti spark-master spark-submit --master spark://spark-master:7077 /opt/spark/project/tpch_etl_pipeline/run_pipeline.py supply_chain
 	
 
 # Enregistrer les tables Delta dans Trino

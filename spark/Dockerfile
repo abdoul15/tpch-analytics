@@ -32,7 +32,9 @@ RUN git clone https://github.com/electrum/tpch-dbgen.git . && \
 
 RUN mkdir -p /opt/tpch-data
 RUN ./dbgen -s 0.01 && \
-    mv *.tbl /opt/tpch-data/
+    mv *.tbl /opt/tpch-data/ && \
+    chmod 644 /opt/tpch-data/*.tbl && \
+    chmod 755 /opt/tpch-data
     
 # Créer les dossiers nécessaires
 RUN mkdir -p /opt/spark/tests /opt/spark/notebooks /tmp/spark-events /opt/spark/scripts
