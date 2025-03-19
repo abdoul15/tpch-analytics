@@ -52,9 +52,13 @@
 
 
 import os
+import time
+import random
 from pyspark.sql import SparkSession
 from delta.tables import DeltaTable
-from humanfriendly import parse_size  # Pour convertir les tailles lues (ex: "128 MB")
+from humanfriendly import parse_size 
+import logging
+from py4j.protocol import Py4JJavaError
 
 
 def get_table_from_db(
@@ -63,7 +67,26 @@ def get_table_from_db(
     partition_column: str = None,
     num_partitions: int = None,  # Devient optionnel
     target_partition_size_mb: int = 128,  # Taille cible par partition (Mo)
+    max_retries: int = 5,  # Nombre maximum de tentatives
+    initial_backoff: float = 1.0,  # Délai initial en secondes
+    max_backoff: float = 30.0,  # Délai maximum en secondes
 ):
+    """
+    Lit une table depuis PostgreSQL avec un mécanisme de retry.
+    
+    Args:
+        table_name: Nom de la table à lire
+        spark: Session Spark
+        partition_column: Colonne de partitionnement (optionnelle)
+        num_partitions: Nombre de partitions (optionnel)
+        target_partition_size_mb: Taille cible par partition en Mo
+        max_retries: Nombre maximum de tentatives
+        initial_backoff: Délai initial entre les tentatives en secondes
+        max_backoff: Délai maximum entre les tentatives en secondes
+        
+    Returns:
+        DataFrame: Données de la table
+    """
     host = os.getenv('UPS_HOST')
     port = os.getenv('UPS_PORT')
     db = os.getenv('UPS_DATABASE')
@@ -78,6 +101,33 @@ def get_table_from_db(
         'fetchsize': '10000',
     }
 
+    # Fonction pour effectuer une requête JDBC avec retry
+    def execute_with_retry(jdbc_func, *args, **kwargs):
+        retries = 0
+        backoff = initial_backoff
+        
+        while retries < max_retries:
+            try:
+                return jdbc_func(*args, **kwargs)
+            except Exception as e:
+                retries += 1
+                if retries >= max_retries:
+                    logging.error(f"Échec après {max_retries} tentatives: {str(e)}")
+                    raise
+                
+                # Calculer le délai avec jitter pour éviter les collisions
+                jitter = random.uniform(0.8, 1.2)
+                sleep_time = min(backoff * jitter, max_backoff)
+                
+                logging.warning(
+                    f"Erreur de connexion à PostgreSQL (tentative {retries}/{max_retries}): {str(e)}. "
+                    f"Nouvelle tentative dans {sleep_time:.2f} secondes..."
+                )
+                
+                time.sleep(sleep_time)
+                # Augmenter le délai de manière exponentielle
+                backoff = min(backoff * 2, max_backoff)
+
     # 1. Récupérer la taille totale de la table
     size_query = f"""
         SELECT pg_size_pretty(pg_total_relation_size('{table_name}')) AS size,
@@ -85,8 +135,12 @@ def get_table_from_db(
         FROM pg_class
         WHERE relname = '{table_name}'
     """
-    size_info = spark.read.jdbc(
-        url=jdbc_url, table=f'({size_query}) as tmp', properties=base_properties
+    
+    size_info = execute_with_retry(
+        spark.read.jdbc,
+        url=jdbc_url, 
+        table=f'({size_query}) as tmp', 
+        properties=base_properties
     ).first()
 
     # 2. Calculer le nombre de partitions cible
@@ -102,8 +156,11 @@ def get_table_from_db(
     # 3. Lecture avec partitionnement JDBC
     if partition_column:
         query = f'(SELECT MIN({partition_column}) as min, MAX({partition_column}) as max FROM {table_name}) as tmp'
-        bounds = spark.read.jdbc(
-            url=jdbc_url, table=query, properties=base_properties
+        bounds = execute_with_retry(
+            spark.read.jdbc,
+            url=jdbc_url, 
+            table=query, 
+            properties=base_properties
         ).first()
 
         partition_properties = {
@@ -114,10 +171,18 @@ def get_table_from_db(
             'numPartitions': str(num_partitions),
         }
 
-        df = spark.read.jdbc(
-            url=jdbc_url, table=table_name, properties=partition_properties
+        df = execute_with_retry(
+            spark.read.jdbc,
+            url=jdbc_url, 
+            table=table_name, 
+            properties=partition_properties
         )
     else:
-        df = spark.read.jdbc(url=jdbc_url, table=table_name, properties=base_properties)
+        df = execute_with_retry(
+            spark.read.jdbc,
+            url=jdbc_url, 
+            table=table_name, 
+            properties=base_properties
+        )
 
     return df
