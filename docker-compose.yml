@@ -11,7 +11,9 @@ services:
       - "9090:8080"
       - "7077:7077"
       - '3002:3002' # Jupyter notebook
-
+    depends_on:
+      upstream_data:
+        condition: service_healthy
     volumes:
       - spark-logs:/opt/spark/spark-events
       - tpch-data:/opt/tpch-data
@@ -101,6 +103,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s  # Donner plus de temps pour l'initialisation
 
   # Trino pour accéder aux tables Delta
   trino:
