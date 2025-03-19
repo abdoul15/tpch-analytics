@@ -112,10 +112,12 @@ services:
       - ./trino/etc:/etc/trino
       - ./trino/catalog:/etc/trino/catalog
       - ./trino/delta-catalog:/etc/trino/delta-catalog
+      - ./trino/entrypoint.sed.sh:/entrypoint.sh
       - trino-data:/data/trino
     environment:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    entrypoint: ["/entrypoint.sh"]
     depends_on:
       - minio
     healthcheck:

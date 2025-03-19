@@ -106,13 +106,10 @@ Cloner le dépôt et démarrer l'environnement Docker :
 git clone https://github.com/abdoul15/tpch-analytics.git
 cd tpch-analytics
 
-# Démarrer l'environnement Docker
-make up
-```
 
 ### **2. Configuration des Credentials**
 
-Le projet utilise deux fichiers d'environnement pour configurer les accès aux différentes sources de données :
+Le projet utilise deux fichiers d'environnement (à créér dans le dossier **tpch-analytics** ) pour configurer les accès aux différentes sources de données :
 
 - `.env` : Contient les variables principales pour PostgreSQL et MinIO
 - `.env.spark` : Contient les variables spécifiques à Spark, qui dépendent des variables définies dans `.env`
@@ -147,29 +144,20 @@ UPS_DATABASE=${POSTGRES_DB}
 
 Pour utiliser vos propres credentials :
 
-1. Copiez les fichiers d'exemple si nécessaire
    ```bash
-   cp .env.example .env
-   cp .env.spark.example .env.spark
-   ```
 
-2. Modifiez d'abord le fichier `.env` avec vos propres credentials
-   ```bash
-   # Pour une base PostgreSQL externe
    POSTGRES_USER=votre_utilisateur
    POSTGRES_PASSWORD=votre_mot_de_passe
    POSTGRES_DB=votre_base_de_donnees
    
-   # Pour un stockage S3 externe
    MINIO_ACCESS_KEY=votre_access_key
    MINIO_SECRET_KEY=votre_secret_key
    ```
 
 3. Le fichier `.env.spark` utilisera automatiquement les valeurs définies dans `.env` grâce à la syntaxe `${VARIABLE}`. Vous pouvez également personnaliser les paramètres spécifiques à Spark si nécessaire.
 
-4. Redémarrez les conteneurs pour prendre en compte les nouvelles variables
+4. Démarrer l'environnement Docker compose
    ```bash
-   make down
    make up
    ```
 
@@ -181,7 +169,7 @@ Plusieurs options sont disponibles pour exécuter le pipeline :
 # Exécuter uniquement la couche interface (par défaut), ce qui exécute tout le pipeline
 make run-pipeline
 
-# Exécuter uniquement les vues pour le département Finance
+# Exécuter et exposer uniquement les métriques pour le département Finance
 make run-finance
 ```
 
@@ -220,7 +208,7 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 
 1. Accédez à l'interface Superset à l'adresse http://localhost:8088 (identifiants : admin/admin123)
 
-2. Allez dans **Sources de données > Bases de données > + Base de données**
+2. Allez dans **+ > Data > Connect Database**
 
 3. Sélectionnez **Trino**, anciennement **Presto** comme type de base de données
 
@@ -232,7 +220,7 @@ Cette commande exécute le script `register_trino_tables.sh` qui :
 
 ### Création de datasets et dashboards dans Superset
 
-1. Allez dans **Sources de données > Tables > + Table**
+1. Allez dans **Datasets > + Dataset**
 
 2. Sélectionnez la base de données **Delta Tables**
 
