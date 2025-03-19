@@ -160,6 +160,10 @@ Pour utiliser vos propres credentials :
    ```bash
    make up
    ```
+   Pour l'arrêter : 
+   ```bash
+   make down
+   ```
 
 ### **3. Exécution du Pipeline**
 
